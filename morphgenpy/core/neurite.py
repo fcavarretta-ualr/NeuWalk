@@ -169,14 +169,165 @@ class Neurite:
         self.children.append(child)
         return child
 
-    def _merge_with_descendent(self):
-        assert len(self.children) == 1 and self.section_type == self.children[0].section_type, "Allowed only with a single child of the same type"
-        cont = self.children[0]
-        self.points += cont.points[1:]
-        for ch in cont.children:
-            ch._disconnect_from_parent()
-            ch.connect(self)
-        del cont
+    def _merge_with_descendant(self):
+        """
+        Merge this section with its only child of the same type.
+
+        The child's first point is assumed to coincide with this section's last
+        point and is therefore not duplicated. The child's descendants are
+        reconnected directly to this section.
+
+        Returns
+        -------
+        Neurite
+            The merged section.
+        """
+        if len(self.children) != 1:
+            raise RuntimeError(
+                "Merging requires exactly one child."
+            )
+
+        descendant = self.children[0]
+
+        if self.section_type != descendant.section_type:
+            raise RuntimeError(
+                "Sections must have the same section_type."
+            )
+
+        if len(self.points) == 0 or len(descendant.points) == 0:
+            raise RuntimeError(
+                "Both sections must contain at least one point."
+            )
+
+        if not np.allclose(
+            self.points[-1],
+            descendant.points[0],
+        ):
+            raise ValueError(
+                "The child must start at the parent endpoint."
+            )
+
+        self.points = np.vstack(
+            (
+                self.points,
+                descendant.points[1:],
+            )
+        )
+
+        grandchildren = list(descendant.children)
+
+        self.disconnect(
+            descendant,
+            relation="child",
+        )
+
+        for child in grandchildren:
+            descendant.disconnect(
+                child,
+                relation="child",
+            )
+            self.connect(
+                child,
+                relation="child",
+            )
+
+        return self
+    
+    def _event_counts(self, bin_size, max_distance=None):
+        """
+        Count terminal, bifurcation, and internal-branch events by spatial bin.
+
+        The bins match the intervals used by ``sholl_plot``. Therefore, if the
+        Sholl plot has length ``n``, each returned array has length ``n - 1``.
+
+        Returns
+        -------
+        tuple of numpy.ndarray
+            ``(bifurcations, annihilations, internal_bifurcations)``.
+        """
+        sholl = self.sholl_plot(
+            bin_size=bin_size,
+            max_distance=max_distance,
+        )
+        n_bins = max(len(sholl) - 1, 0)
+
+        bifurcations = np.zeros(n_bins, dtype=int)
+        annihilations = np.zeros(n_bins, dtype=int)
+        internal_bifurcations = np.zeros(n_bins, dtype=int)
+
+        if self.section_type == "soma":
+            subtrees = [
+                child
+                for child in self.children
+                if len(child.points)
+                and child.section_type != "unknown"
+            ]
+        elif len(self.points):
+            subtrees = [self]
+        else:
+            return (
+                bifurcations,
+                annihilations,
+                internal_bifurcations,
+            )
+
+        def bin_index(distance):
+            if n_bins == 0 or distance < 0:
+                return None
+
+            # A point exactly on a boundary belongs to the preceding bin.
+            adjusted = np.nextafter(distance, 0.0)
+            index = int(np.floor(adjusted / bin_size))
+
+            return index if 0 <= index < n_bins else None
+
+        for subtree in subtrees:
+            origin = subtree.points[0]
+
+            for section in subtree.subtree:
+                if (
+                    section.section_type == "unknown"
+                    or len(section.points) == 0
+                ):
+                    continue
+
+                endpoint = misc.translate_points(
+                    section.points[-1],
+                    source=origin,
+                )
+                index = bin_index(np.linalg.norm(endpoint))
+
+                if index is None:
+                    continue
+
+                valid_children = [
+                    child
+                    for child in section.children
+                    if child.section_type != "unknown"
+                ]
+
+                if not valid_children:
+                    annihilations[index] += 1
+                    continue
+
+                if len(valid_children) < 2:
+                    continue
+
+                is_internal = any(
+                    "oblique" in str(child.section_type).lower()
+                    for child in valid_children
+                )
+
+                if is_internal:
+                    internal_bifurcations[index] += 1
+                else:
+                    bifurcations[index] += 1
+
+        return (
+            bifurcations,
+            annihilations,
+            internal_bifurcations,
+        )
 
     def sholl_plot(self, bin_size, max_distance=None):
         """
@@ -342,3 +493,18 @@ class Neurite:
             raise ValueError("points must have shape (n, 3).")
 
         return points.copy()
+    
+    def clone(self):
+        """
+        Return an independent copy of this neurite subtree.
+        """
+        cloned = self.__class__(
+            points=self.points.copy(),
+            section_type=self.section_type,
+        )
+
+
+        for child in self.children:
+            cloned.connect(child.clone(), relation="child")
+
+        return cloned

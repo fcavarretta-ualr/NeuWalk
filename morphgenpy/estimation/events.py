@@ -254,16 +254,22 @@ def event_rates(
     V = std[:i_non_zeros] ** 2
     
     # no branch or annihilation marked bins
-    if no_bifurcation_bins is not None:
-        no_bifurcation_bins = no_bifurcation_bins[:i_non_zeros]
+    if no_bifurcation_bins is None:
+        no_bifurcation_bins = np.array([False] * i_non_zeros)
+    else:
+        no_bifurcation_bins = np.array(no_bifurcation_bins[:i_non_zeros])
 
-    if no_annihilation_bins is not None:
-        no_annihilation_bins = no_annihilation_bins[:i_non_zeros]
+    if no_annihilation_bins is None:
+        no_annihilation_bins = np.array([False] * i_non_zeros)
+    else:
+        no_annihilation_bins = np.array(no_annihilation_bins[:i_non_zeros])
         
         
     # oblique density
     if bifurcation_internal_density is None:
         bifurcation_internal_density = np.zeros(i_non_zeros)
+    else:
+        bifurcation_internal_density = np.array(bifurcation_internal_density[:i_non_zeros])
         
     # Use bifurcation mean and variance if available; otherwise set to None
     n_bif = [bifurcation_count['mean'], bifurcation_count['std'] ** 2] if bifurcation_count else None
@@ -327,13 +333,13 @@ def event_rates(
     # create the minimum required constraints
     for i in range(gamma.size):
         # check if branching or annihilation are user-constrained
-        if no_annihilation_bins and no_annihilation_bins[i]:
+        if no_annihilation_bins[i]:
             model.constraints.add(model.pa[i] == 0)
         else:
             model.constraints.add(model.pa[i] <= 1)  
             model.constraints.add(model.pa[i] >= 0)
             
-        if no_bifurcation_bins and no_bifurcation_bins[i]:
+        if no_bifurcation_bins[i]:
             model.constraints.add(model.pb[i] == 0)
         else:
             model.constraints.add(model.pb[i] <= 1)  
@@ -380,5 +386,6 @@ def event_rates(
     # implement barrier at the end of the sholl plots
     b = np.append(b, 0.)
     a = np.append(a, np.inf)
+    bifurcation_internal_density = np.append(bifurcation_internal_density, 0.)
 
     return { 'bifurcation_rate':b, 'annihilation_rate':a, 'internal_bifurcation_rate':bifurcation_internal_density }
