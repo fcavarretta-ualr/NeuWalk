@@ -1,5 +1,6 @@
 import numpy as np
 
+from .. import misc
 
 class Neurite:
     """Represent one section of a rooted neurite tree."""
@@ -168,66 +169,124 @@ class Neurite:
         self.children.append(child)
         return child
 
-    def sholl_plot(
-        self,
-        bin_size,
-        max_distance=None,
-        center=None,
-    ):
+    def _merge_with_descendent(self):
+        assert len(self.children) == 1 and self.section_type == self.children[0].section_type, "Allowed only with a single child of the same type"
+        cont = self.children[0]
+        self.points += cont.points[1:]
+        for ch in cont.children:
+            ch._disconnect_from_parent()
+            ch.connect(self)
+        del cont
+
+    def sholl_plot(self, bin_size, max_distance=None):
         """
-        Count subtree intersections with concentric spherical shells.
+        Calculate a Sholl plot after aligning primary dendrite origins.
+
+        Bin zero contains the number of primary dendrites. Each primary
+        dendrite subtree is translated so that its first point lies at the
+        origin before shell intersections are calculated.
         """
         if bin_size <= 0:
             raise ValueError("bin_size must be positive.")
 
-        if center is None:
-            if len(self.root.points) == 0:
-                raise ValueError("The root neurite has no points.")
 
-            center = self.root.points[0]
-
-        center = np.asarray(center, dtype=float)
-
-        if center.shape != (3,):
-            raise ValueError("center must have shape (3,).")
-
-        if max_distance is None:
-            point_sets = [
-                neurite.points
-                for neurite in self.subtree
-                if len(neurite.points)
+        # Standard neuron: the root is generally the soma and its children
+        # are the primary dendrites.
+        if self.section_type == "soma":
+            primary_dendrites = [
+                child
+                for child in self.children
+                if len(child.points) > 0
             ]
 
-            if not point_sets:
-                return np.zeros(0, dtype=int)
+        # Disconnected morphology: the root itself represents one primary
+        # dendrite.
+        elif len(self.points) > 0:
+            primary_dendrites = [self]
 
-            max_distance = np.max(
-                np.linalg.norm(
-                    np.vstack(point_sets) - center,
-                    axis=1,
+        else:
+            return np.zeros(1, dtype=int)
+
+        segments = []
+
+        for primary in primary_dendrites:
+            translation_origin = primary.points[0]
+
+            for section in primary.subtree:
+                points = misc.translate_points(
+                    section.points,
+                    source=translation_origin,
                 )
+
+                for point_0, point_1 in zip(
+                    points[:-1],
+                    points[1:],
+                ):
+                    segments.append((point_0, point_1))
+
+                # Add a connector only when the parent and child sections
+                # do not already share their connecting point.
+                if (
+                    section is not primary
+                    and section.parent is not None
+                    and len(section.parent.points) > 0
+                    and len(section.points) > 0
+                ):
+                    parent_endpoint = misc.translate_points(
+                        section.parent.points[-1],
+                        source=translation_origin,
+                    )
+
+                    child_start = points[0]
+
+                    if not np.allclose(
+                        parent_endpoint,
+                        child_start,
+                    ):
+                        segments.append(
+                            (parent_endpoint, child_start)
+                        )
+
+        if max_distance is None:
+            max_distance = max(
+                (
+                    np.linalg.norm(point)
+                    for segment in segments
+                    for point in segment
+                ),
+                default=0.0,
             )
 
         if max_distance < 0:
             raise ValueError("max_distance cannot be negative.")
 
-        radii = np.arange(
-            0.0,
+        shell_radii = np.arange(
+            bin_size,
             max_distance + 0.5 * bin_size,
             bin_size,
         )
-        counts = np.zeros(len(radii), dtype=int)
 
-        for point_0, point_1 in self._segments():
-            distance_0 = np.linalg.norm(point_0 - center)
-            distance_1 = np.linalg.norm(point_1 - center)
-            lower, upper = sorted((distance_0, distance_1))
+        sholl = np.zeros(
+            len(shell_radii) + 1,
+            dtype=int,
+        )
 
-            counts += (
-                (radii > lower) & (radii <= upper)
+        # This value is assigned independently of shell intersections.
+        sholl[0] = len(primary_dendrites)
+
+        for point_0, point_1 in segments:
+            distance_0 = np.linalg.norm(point_0)
+            distance_1 = np.linalg.norm(point_1)
+
+            lower = min(distance_0, distance_1)
+            upper = max(distance_0, distance_1)
+
+            sholl[1:] += (
+                (shell_radii > lower)
+                & (shell_radii <= upper)
             ).astype(int)
 
-        return counts
+        return sholl
 
     def _traverse(self):
         """Yield this section and its descendants depth-first."""
