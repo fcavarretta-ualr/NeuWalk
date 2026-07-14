@@ -8,7 +8,7 @@ import numpy as np
 from morphgenpy.io import read_swc
 from morphgenpy.profiles import NeuriteProfile
 from morphgenpy.sampling import EventSampler
-from morphgenpy.synthesis import TopologySynthesizer
+from morphgenpy.synthesis import TopologySynthesizer, TopologyGuidedSynthesizer
 
 
 def _pad(array, size):
@@ -134,6 +134,14 @@ def load_statistics(directory, bin_size):
     }
 
 
+def walk_factory(profile, parent_walk):
+    return RandomWalk(
+        rng=rng,
+        first_point=[0.0, 0.0, 0.0],
+        step_size=profile.step_size,
+        initial_direction=[1.0, 0.0, 0.0],
+    )
+
 def main():
     parser = argparse.ArgumentParser(
         description="Estimate event statistics and test EventSampler."
@@ -165,11 +173,16 @@ def main():
     )
 
 
-
-    synthesizer.synthesize_progressive(
+    coordinator = TopologyGuidedSynthesizer(
+        tree_synthesizer=synthesizer,
+        walk_factory=walk_factory,
+    )
+    
+    walk_roots = coordinator.synthesize(
         n_std=1.0,
-        max_attempts_per_window=5,
+        max_attempts_per_window=2,
         max_total_attempts=1000,
+        max_epochs=1000,
         verbose=True,
     )
 

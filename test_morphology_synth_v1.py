@@ -8,7 +8,8 @@ import numpy as np
 from morphgenpy.io import read_swc
 from morphgenpy.profiles import NeuriteProfile
 from morphgenpy.sampling import EventSampler
-from morphgenpy.synthesis import TopologySynthesizer
+from morphgenpy.synthesis import TopologySynthesizer, MorphologySynthesizer
+from morphgenpy.visualization import plot_morphology
 
 
 def _pad(array, size):
@@ -152,7 +153,7 @@ def main():
 
     rng = np.random.default_rng(args.seed)
 
-    synthesizer = TopologySynthesizer(
+    topol_synthesizer = TopologySynthesizer(
         rng=rng,
         step_size=args.step_size,
         bin_size=args.bin_size,
@@ -166,17 +167,16 @@ def main():
 
 
 
-    synthesizer.synthesize_progressive(
+    topol_synthesizer.synthesize_progressive(
         n_std=1.0,
         max_attempts_per_window=5,
         max_total_attempts=1000,
         verbose=True,
     )
 
-    soma = synthesizer.soma
     
     print("primary_count_range:", stats["primary_count_range"])
-    print("sampled_primary_count:", len(soma.children))
+    print("sampled_primary_count:", len(topol_synthesizer.soma.children))
     print(
         "internal_density:",
         stats["bifurcation_internal_density"],
@@ -190,9 +190,21 @@ def main():
         stats["no_annihilation_bins"],
     )
     print("bifurcation_count (Exp):", stats["bifurcation_count"])
-    print("bifurcation_count (Sim):", soma.bifurcation_count())
-    print("sholl_plot:", soma.sholl_plot(args.bin_size))
+    print("bifurcation_count (Sim):", topol_synthesizer.soma.bifurcation_count())
+    print("sholl_plot:", topol_synthesizer.soma.sholl_plot(args.bin_size))
 
+    morph_synthesizer = MorphologySynthesizer(
+        root=topol_synthesizer.soma,
+        rng=rng,
+        theta=(0.0, np.pi),
+        phi=(0.0, 2.0 * np.pi),
+        axis_direction=np.array([0.0, 1.0, 1.0]),
+    )
+    soma = morph_synthesizer.synthesize()
+    print("bifurcation_count (Sim):", soma.bifurcation_count)
+    print("sholl_plot:", soma.sholl_plot(args.bin_size))
+    
+    plot_morphology(soma)
 
 if __name__ == "__main__":
     main()

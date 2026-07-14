@@ -2,6 +2,7 @@ import numpy as np
 
 from .. import misc
 
+
 class Neurite:
     """Represent one section of a rooted neurite tree."""
 
@@ -24,10 +25,27 @@ class Neurite:
         self.points = self._validate_points(points)
         self.section_type = section_type
         self.parent = None
-        self.children = []
+        self._children = []
 
         if parent is not None:
             self.connect(parent, relation="parent")
+
+    @property
+    def children(self):
+        """Return a copy of the child sections."""
+        return self._children.copy()
+
+    @property
+    def length(self):
+        """Return the length of the neurite."""
+        points = np.asarray(self.points, dtype=float)
+
+        return np.sum(
+            np.linalg.norm(
+                points[1:, :] - points[:-1, :],
+                axis=1,
+            )
+        )
 
     @property
     def root(self):
@@ -65,8 +83,8 @@ class Neurite:
     def bifurcation_count(self):
         """Return the number of branching sections in this subtree."""
         return sum(
-            len(neurite.children) >= 2
-            for neurite in self.subtree
+            len(neurite.children) == 2
+            for neurite in self.subtree if neurite.section_type != "soma"
         )
 
     @property
@@ -76,6 +94,17 @@ class Neurite:
             np.linalg.norm(point_1 - point_0)
             for point_0, point_1 in self._segments()
         )
+
+    @property
+    def siblings(self):
+        """Return sibling sections."""
+        if not self.parent:
+            return []
+
+        siblings = set(self.parent.children)
+        siblings.discard(self)
+
+        return list(siblings)
 
     def connect(self, neurite, relation="parent"):
         """
@@ -88,86 +117,48 @@ class Neurite:
         relation : {"parent", "child"}, default "parent"
             Relationship of ``neurite`` relative to this neurite.
         """
-        relation = self._validate_relation(relation)
-
         if relation == "child":
-            return self._connect_child(neurite)
+            self._connect_child(neurite)
+        elif relation == "parent":
+            neurite._connect_child(self)
+        else:
+            raise Exception(f"Unknown relation {relation}")
 
-        neurite._connect_child(self)
-        return neurite
-
-    def disconnect(self, neurite=None, relation=None):
+    def disconnect(self, neurite):
         """
         Disconnect this neurite's parent or one of its children.
 
         Parameters
         ----------
-        neurite : Neurite, optional
+        neurite : Neurite
             Specific neurite to disconnect.
-        relation : {"parent", "child"}
-            Relationship of ``neurite`` relative to this neurite.
         """
-        relation = self._validate_relation(relation)
-
-        if relation == "parent":
-            if self.parent is None:
-                return None
-
-            if neurite is not None and neurite is not self.parent:
-                raise ValueError(
-                    "The supplied neurite is not this neurite's parent."
-                )
-
-            parent = self.parent
-            parent.children.remove(self)
+        if neurite is self.parent:
+            self.parent._children.remove(self)
             self.parent = None
-            return parent
 
-        if neurite is None:
+        elif neurite in self._children:
+            self._children.remove(neurite)
+            neurite.parent = None
+
+        else:
             raise ValueError(
-                "neurite must be provided when disconnecting a child."
+                "The supplied neurite is not this neurite's parent or child."
             )
-
-        if neurite.parent is not self or neurite not in self.children:
-            raise ValueError(
-                "The supplied neurite is not connected as a child."
-            )
-
-        self.children.remove(neurite)
-        neurite.parent = None
-        return neurite
 
     def _connect_child(self, child):
         """Connect ``child`` directly below this neurite."""
         if not isinstance(child, Neurite):
             raise TypeError("neurite must be a Neurite.")
 
-        if child is self:
-            raise ValueError("A neurite cannot be connected to itself.")
+        if self in child.subtree or child in self.subtree:
+            raise ValueError("Sections already connected.")
 
-        if self in child.subtree:
-            raise ValueError("The connection would create a cycle.")
-
-        if child.parent is self:
-            if child not in self.children:
-                self.children.append(child)
-            return child
-
-        if child in self.children:
-            raise RuntimeError(
-                "Inconsistent topology: child is already listed but "
-                "does not reference this neurite as its parent."
-            )
-
-        if child.parent is not None:
-            child.disconnect(
-                neurite=child.parent,
-                relation="parent",
-            )
+        if child.parent:
+            raise RuntimeError("Child already connected.")
 
         child.parent = self
-        self.children.append(child)
-        return child
+        self._children.append(child)
 
     def _merge_with_descendant(self):
         """
@@ -182,12 +173,12 @@ class Neurite:
         Neurite
             The merged section.
         """
-        if len(self.children) != 1:
+        if len(self._children) != 1:
             raise RuntimeError(
                 "Merging requires exactly one child."
             )
 
-        descendant = self.children[0]
+        descendant = self._children[0]
 
         if self.section_type != descendant.section_type:
             raise RuntimeError(
@@ -214,25 +205,16 @@ class Neurite:
             )
         )
 
-        grandchildren = list(descendant.children)
+        grandchildren = descendant.children
 
-        self.disconnect(
-            descendant,
-            relation="child",
-        )
+        self.disconnect(descendant)
 
         for child in grandchildren:
-            descendant.disconnect(
-                child,
-                relation="child",
-            )
-            self.connect(
-                child,
-                relation="child",
-            )
+            descendant.disconnect(child)
+            self.connect(child, relation="child")
 
         return self
-    
+
     def _event_counts(self, bin_size, max_distance=None):
         """
         Count terminal, bifurcation, and internal-branch events by spatial bin.
@@ -258,12 +240,14 @@ class Neurite:
         if self.section_type == "soma":
             subtrees = [
                 child
-                for child in self.children
+                for child in self._children
                 if len(child.points)
                 and child.section_type != "unknown"
             ]
+
         elif len(self.points):
             subtrees = [self]
+
         else:
             return (
                 bifurcations,
@@ -340,13 +324,12 @@ class Neurite:
         if bin_size <= 0:
             raise ValueError("bin_size must be positive.")
 
-
         # Standard neuron: the root is generally the soma and its children
         # are the primary dendrites.
         if self.section_type == "soma":
             primary_dendrites = [
                 child
-                for child in self.children
+                for child in self._children
                 if len(child.points) > 0
             ]
 
@@ -360,43 +343,12 @@ class Neurite:
 
         segments = []
 
+    
         for primary in primary_dendrites:
-            translation_origin = primary.points[0]
-
+            source = primary.points[0].copy()
             for section in primary.subtree:
-                points = misc.translate_points(
-                    section.points,
-                    source=translation_origin,
-                )
-
-                for point_0, point_1 in zip(
-                    points[:-1],
-                    points[1:],
-                ):
-                    segments.append((point_0, point_1))
-
-                # Add a connector only when the parent and child sections
-                # do not already share their connecting point.
-                if (
-                    section is not primary
-                    and section.parent is not None
-                    and len(section.parent.points) > 0
-                    and len(section.points) > 0
-                ):
-                    parent_endpoint = misc.translate_points(
-                        section.parent.points[-1],
-                        source=translation_origin,
-                    )
-
-                    child_start = points[0]
-
-                    if not np.allclose(
-                        parent_endpoint,
-                        child_start,
-                    ):
-                        segments.append(
-                            (parent_endpoint, child_start)
-                        )
+                for point_0, point_1 in zip(section.points[:-1], section.points[1:]):
+                    segments.append((point_0 - source, point_1 - source))
 
         if max_distance is None:
             max_distance = max(
@@ -410,40 +362,32 @@ class Neurite:
 
         if max_distance < 0:
             raise ValueError("max_distance cannot be negative.")
-
-        shell_radii = np.arange(
-            bin_size,
-            max_distance + 0.5 * bin_size,
+        
+        radii = np.arange(
+            0.0,
+            max_distance + bin_size,
             bin_size,
         )
 
-        sholl = np.zeros(
-            len(shell_radii) + 1,
-            dtype=int,
-        )
+        crossings = np.zeros(len(radii), dtype=int)
 
         # This value is assigned independently of shell intersections.
-        sholl[0] = len(primary_dendrites)
 
         for point_0, point_1 in segments:
             distance_0 = np.linalg.norm(point_0)
             distance_1 = np.linalg.norm(point_1)
 
-            lower = min(distance_0, distance_1)
-            upper = max(distance_0, distance_1)
+            start = min(distance_0, distance_1)
+            end = max(distance_0, distance_1)
+            crossings += (radii >= start) & (radii < end)
 
-            sholl[1:] += (
-                (shell_radii > lower)
-                & (shell_radii <= upper)
-            ).astype(int)
-
-        return sholl
+        return crossings.astype(int)
 
     def _traverse(self):
         """Yield this section and its descendants depth-first."""
         yield self
 
-        for child in self.children:
+        for child in self._children:
             yield from child._traverse()
 
     def _segments(self):
@@ -465,24 +409,17 @@ class Neurite:
 
                 # Do not add an extra connector when the two sections
                 # already share the same point.
-                if not np.allclose(parent_endpoint, child_start):
+                if not np.allclose(
+                    parent_endpoint,
+                    child_start,
+                ):
                     yield parent_endpoint, child_start
-
-    @staticmethod
-    def _validate_relation(relation):
-        """Validate a parent-child relation identifier."""
-        if relation not in {"parent", "child"}:
-            raise ValueError(
-                "relation must be either 'parent' or 'child'."
-            )
-
-        return relation
 
     @staticmethod
     def _validate_points(points):
         """Return points as a float array with shape ``(n, 3)``."""
         if points is None:
-            return np.empty((0, 3), dtype=float)
+            return []
 
         points = np.asarray(points, dtype=float)
 
@@ -492,19 +429,22 @@ class Neurite:
         if points.ndim != 2 or points.shape[1] != 3:
             raise ValueError("points must have shape (n, 3).")
 
-        return points.copy()
-    
+        return [
+            np.array(point, dtype=float)
+            for point in points
+        ]
+
     def clone(self):
-        """
-        Return an independent copy of this neurite subtree.
-        """
+        """Return an independent copy of this neurite subtree."""
         cloned = self.__class__(
             points=self.points.copy(),
             section_type=self.section_type,
         )
 
-
-        for child in self.children:
-            cloned.connect(child.clone(), relation="child")
+        for child in self._children:
+            cloned.connect(
+                child.clone(),
+                relation="child",
+            )
 
         return cloned
