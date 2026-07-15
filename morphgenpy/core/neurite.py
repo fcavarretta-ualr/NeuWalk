@@ -105,7 +105,25 @@ class Neurite:
         siblings.discard(self)
 
         return list(siblings)
+    
+    def disconnect_from_parent(self):
+        """Disconnect this neurite from its parent and return the parent."""
+        parent = self.parent
 
+        if parent is not None:
+            self.disconnect(parent)
+
+        return parent
+
+    def disconnect_from_children(self):
+        """Disconnect and return all child neurites."""
+        children = self.children
+
+        for child in children:
+            self.disconnect(child)
+
+        return children
+    
     def connect(self, neurite, relation="parent"):
         """
         Connect another neurite as this neurite's parent or child.

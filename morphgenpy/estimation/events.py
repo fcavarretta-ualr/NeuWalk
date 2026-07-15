@@ -267,13 +267,12 @@ def event_rates(
         
     # oblique density
     if bifurcation_internal_density is None:
-        bifurcation_internal_density = np.zeros(i_non_zeros)
+        bifurcation_internal_density = np.zeros(i_non_zeros-1)
     else:
-        bifurcation_internal_density = np.array(bifurcation_internal_density[:i_non_zeros])
+        bifurcation_internal_density = np.array(bifurcation_internal_density[:i_non_zeros-1])
         
     # Use bifurcation mean and variance if available; otherwise set to None
     n_bif = [bifurcation_count['mean'], bifurcation_count['std'] ** 2] if bifurcation_count else None
-
 
     # calculate the gamma
     gamma = np.log(Z[1:] / Z[:-1]) / bin_size

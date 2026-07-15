@@ -1,5 +1,7 @@
-from .tree import NeuriteTreeSynthesizer
+from .topology import TopologySynthesizer
+from .morphology import MorphologySynthesizer
 
 __all__ = [
-    "NeuriteTreeSynthesizer"
+    "TopologySynthesizer",
+    "MorphologySynthesizer"
 ]

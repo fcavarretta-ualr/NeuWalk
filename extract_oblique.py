@@ -1,0 +1,39 @@
+import argparse
+
+from morphogenpy.statistics.morphologies import load_morphologies
+
+
+def iter_sections(section):
+    yield section
+
+    for child in section.children:
+        yield from iter_sections(child)
+
+
+parser = argparse.ArgumentParser(description="Load and retain only apical-oblique dendrites.")
+parser.add_argument("directory", help="Directory containing SWC files.")
+args = parser.parse_args()
+
+morphologies = load_morphologies(args.directory, delete_section_types="unknown")
+apical_oblique_morphologies = []
+
+for roots in morphologies:
+    apical_obliques = []
+
+    for root in roots:
+        for section in iter_sections(root):
+            if section.section_type != "apical_oblique":
+                continue
+
+            parent = section.parent
+
+            if parent is None or parent.section_type != "apical_oblique":
+                if parent is not None:
+                    parent.disconnect(section)
+
+                apical_obliques.append(section)
+
+    apical_oblique_morphologies.append(apical_obliques)
+
+print(f"Loaded {len(morphologies)} morphologies.")
+print(f"Extracted {sum(map(len, apical_oblique_morphologies))} apical-oblique trees.")

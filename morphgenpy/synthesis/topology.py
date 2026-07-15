@@ -1,8 +1,8 @@
-from .sampling import EventSampler
+from ..sampling import EventSampler
 from ..profiles import NeuriteProfile
 from ._progressive_sholl_synthesis import synthesize_progressive
 
-class NeuriteTreeSynthesizer:
+class TopologySynthesizer:
     """Represent and synthesize a neurite tree profile."""
 
     def __init__(
@@ -75,9 +75,7 @@ class NeuriteTreeSynthesizer:
             sholl_plot=sholl_plot,
             bifurcation_density=bifurcation_density,
             annihilation_density=annihilation_density,
-            bifurcation_internal_density=(
-                bifurcation_internal_density
-            ),
+            bifurcation_internal_density=bifurcation_internal_density,
             bifurcation_count=bifurcation_count,
             primary_count_range=primary_count_range,
             no_bifurcation_bins=no_bifurcation_bins,
@@ -275,11 +273,6 @@ class NeuriteTreeSynthesizer:
                 elif event == "annihilate":
                     neurite.annihilate()
 
-                    # increse the order if it annihilates in a space
-                    # where bifurcation or elongation are predominant
-                    if self._neurite_is_secondary(neurite):
-                        neurite.order += 1
-
                 else:
                     raise RuntimeError(
                         f"Unknown synthesis event: {event!r}."
@@ -290,14 +283,6 @@ class NeuriteTreeSynthesizer:
 
         self.synthesis_logs.append(synthesis_log)
 
-
-        def visit(s):
-
-            if s.children:
-                s.order = min([visit(ch) for ch in s.children])
-            
-            return s.order
-        visit(self.soma)
         return self.soma
 
     
