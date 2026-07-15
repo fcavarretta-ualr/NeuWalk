@@ -19,6 +19,7 @@ class RandomWalk(Neurite):
         initial_direction=None,
         elongation_bias=None,
         bifurcation_bias=None,
+        internal_branch=None,
         centrifugal=True,
         parent=None,
         active=True,
@@ -121,6 +122,8 @@ class RandomWalk(Neurite):
             raise ValueError("elongation_bias_weight must be finite and non-negative.")
 
         self.elongation_bias_weight = elongation_bias_weight
+
+        self.internal_branch = self._prepare_internal_branch(internal_branch)
 
     @property
     def first_point(self):
@@ -314,7 +317,22 @@ class RandomWalk(Neurite):
         self._check_move_allowed()
 
         directions = self._compute_bifurcation_directions()
-        children = [self._create_child(direction, active=True) for direction in directions]
+
+        if event == "internal_bifurcation":
+            children = [
+                self._create_child(directions[0], active=True),
+                self._create_child(
+                    directions[1],
+                    active=True,
+                    internal=True,
+                ),
+            ]
+        else:
+            children = [
+                self._create_child(direction, active=True)
+                for direction in directions
+            ]
+
         pending_event = {"event": event, "children": children, "directions": directions}
 
         if event == "internal_bifurcation":
@@ -326,25 +344,34 @@ class RandomWalk(Neurite):
         self.pending_event = pending_event
         return tuple(children)
 
-    def _create_child(self, initial_direction, active):
+    def _create_child(self, initial_direction, active, internal=False):
         """Create a pending child random walk."""
+        config = self.internal_branch if internal else {
+            "elongation_bias": self.elongation_biases,
+            "bifurcation_bias": self.bifurcation_bias,
+            "max_angle": self.max_angle,
+            "elongation_random_weight": self.elongation_random_weight,
+            "elongation_bias_weight": self.elongation_bias_weight,
+        }
+
         return self.__class__(
             rng=self.rng,
             step_size=self.step_size,
             first_point=self.current_point,
             origin=self.origin,
             initial_direction=initial_direction,
-            elongation_bias=self.elongation_biases,
-            bifurcation_bias=self.bifurcation_bias,
+            elongation_bias=config["elongation_bias"],
+            bifurcation_bias=config["bifurcation_bias"],
+            internal_branch=self.internal_branch,
             centrifugal=self.centrifugal,
             parent=self,
             active=active,
             section_type=self.section_type,
-            max_angle=self.max_angle,
-            elongation_random_weight=self.elongation_random_weight,
+            max_angle=config["max_angle"],
+            elongation_random_weight=config["elongation_random_weight"],
             elongation_random_hill_k=self.elongation_random_hill_k,
             elongation_random_hill_n=self.elongation_random_hill_n,
-            elongation_bias_weight=self.elongation_bias_weight,
+            elongation_bias_weight=config["elongation_bias_weight"],
         )
 
     def _compute_bifurcation_directions(self):
@@ -390,6 +417,75 @@ class RandomWalk(Neurite):
 
         for child in self._children:
             yield from child._iter_walks()
+
+    def _prepare_internal_branch(self, internal_branch):
+        """Validate and complete the internal-branch configuration."""
+        if internal_branch is None:
+            internal_branch = {}
+        elif not isinstance(internal_branch, dict):
+            raise TypeError("internal_branch must be a dictionary or None.")
+        else:
+            internal_branch = dict(internal_branch)
+
+        allowed = {
+            "elongation_bias",
+            "bifurcation_bias",
+            "max_angle",
+            "elongation_random_weight",
+            "elongation_bias_weight",
+        }
+        unknown = set(internal_branch) - allowed
+
+        if unknown:
+            raise ValueError(f"Unknown internal_branch parameters: {sorted(unknown)}")
+
+        elongation_bias = self._prepare_elongation_biases(
+            internal_branch.get("elongation_bias", self.elongation_biases)
+        )
+        bifurcation_bias = internal_branch.get("bifurcation_bias", self.bifurcation_bias)
+        self._validate_bias(bifurcation_bias, "internal_branch['bifurcation_bias']")
+
+        max_angle = internal_branch.get("max_angle", self.max_angle)
+
+        if not np.isscalar(max_angle):
+            raise TypeError("internal_branch['max_angle'] must be a scalar.")
+
+        max_angle = float(max_angle)
+
+        if not np.isfinite(max_angle) or not 0.0 <= max_angle <= np.pi:
+            raise ValueError("internal_branch['max_angle'] must be finite and lie within [0, pi].")
+
+        elongation_random_weight = internal_branch.get(
+            "elongation_random_weight", self.elongation_random_weight
+        )
+
+        if not np.isscalar(elongation_random_weight):
+            raise TypeError("internal_branch['elongation_random_weight'] must be a scalar.")
+
+        elongation_random_weight = float(elongation_random_weight)
+
+        if not np.isfinite(elongation_random_weight) or elongation_random_weight < 0.0:
+            raise ValueError("internal_branch['elongation_random_weight'] must be finite and non-negative.")
+
+        elongation_bias_weight = internal_branch.get(
+            "elongation_bias_weight", self.elongation_bias_weight
+        )
+
+        if not np.isscalar(elongation_bias_weight):
+            raise TypeError("internal_branch['elongation_bias_weight'] must be a scalar.")
+
+        elongation_bias_weight = float(elongation_bias_weight)
+
+        if not np.isfinite(elongation_bias_weight) or elongation_bias_weight < 0.0:
+            raise ValueError("internal_branch['elongation_bias_weight'] must be finite and non-negative.")
+
+        return {
+            "elongation_bias": elongation_bias,
+            "bifurcation_bias": bifurcation_bias,
+            "max_angle": max_angle,
+            "elongation_random_weight": elongation_random_weight,
+            "elongation_bias_weight": elongation_bias_weight,
+        }
 
     @staticmethod
     def _prepare_elongation_biases(biases):
