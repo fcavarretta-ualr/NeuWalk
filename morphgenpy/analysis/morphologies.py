@@ -1,5 +1,8 @@
 from pathlib import Path
 
+import numpy as np
+
+from .. import misc
 from ..io import read_swc
 
 
@@ -8,6 +11,30 @@ def _normalize_section_types(section_types):
         return set()
 
     return {section_types} if isinstance(section_types, str) else set(section_types)
+
+
+def _align_children(section):
+    """Translate each child so that it begins at its parent's endpoint."""
+    for child in section.children:
+        child.points = misc.translate_points(
+            child.points,
+            source=child.points[0],
+            target=section.points[-1],
+        )
+        _align_children(child)
+
+
+def _preprocess_geometry(root):
+    """Center each root and connect every child geometrically to its parent."""
+    if root.section_type == "soma":
+        root.points = [np.zeros(3, dtype=float)]
+    elif len(root.points):
+        root.points = misc.translate_points(
+            root.points,
+            source=root.points[0],
+        )
+
+    _align_children(root)
 
 
 def _delete_section_types(section, section_types):
@@ -19,19 +46,26 @@ def _delete_section_types(section, section_types):
             section.disconnect(child)
 
             for grandchild in grandchildren:
-                child.disconnect(grandchild, relation="child")
+                child.disconnect(grandchild)
                 section.connect(grandchild, relation="child")
 
 
 def _merge_single_children(section):
-    while len(section.children) == 1 and section.section_type == section.children[0].section_type:
+    while (
+        len(section.children) == 1
+        and section.section_type == section.children[0].section_type
+    ):
         section._merge_with_descendant()
 
     for child in list(section.children):
         _merge_single_children(child)
 
 
-def process_morphology(roots, delete_section_types=None, merge_single_children=True):
+def process_morphology(
+    roots,
+    delete_section_types=None,
+    merge_single_children=True,
+):
     """Delete selected section types and optionally merge same-type single-child sections."""
     roots = list(roots)
     delete_section_types = _normalize_section_types(delete_section_types)
@@ -56,6 +90,10 @@ def process_morphology(roots, delete_section_types=None, merge_single_children=T
     if merge_single_children:
         for root in processed_roots:
             _merge_single_children(root)
+
+    # Deleting or merging sections may reconnect descendants to new parents.
+    for root in processed_roots:
+        _align_children(root)
 
     return processed_roots
 
@@ -84,11 +122,28 @@ def load_morphologies(
         roots = []
 
         for root in read_swc(filename):
-            candidates = root.children if root.section_type == "soma" else [root]
-            roots.extend(process_morphology(candidates, delete_section_types, merge_single_children))
+            _preprocess_geometry(root)
+
+            candidates = (
+                root.children
+                if root.section_type == "soma"
+                else [root]
+            )
+
+            roots.extend(
+                process_morphology(
+                    candidates,
+                    delete_section_types,
+                    merge_single_children,
+                )
+            )
 
         if root_section_types is not None:
-            roots = [root for root in roots if root.section_type in root_section_types]
+            roots = [
+                root
+                for root in roots
+                if root.section_type in root_section_types
+            ]
 
         morphologies.append(roots)
 
