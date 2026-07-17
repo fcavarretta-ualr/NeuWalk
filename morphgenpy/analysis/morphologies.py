@@ -37,6 +37,20 @@ def _preprocess_geometry(root):
     _align_children(root)
 
 
+def _remove_consecutive_duplicate_points(root):
+    """Remove consecutive duplicate points from every section in the tree."""
+    for section in root.wholetree:
+        if len(section.points) < 2:
+            continue
+
+        points = [section.points[0]]
+
+        for point in section.points[1:]:
+            if not (point == points[-1]).all():
+                points.append(point)
+
+        section.points = points
+
 def _delete_section_types(section, section_types):
     for child in list(section.children):
         _delete_section_types(child, section_types)
@@ -97,6 +111,25 @@ def process_morphology(
 
     return processed_roots
 
+def _remove_single_point_sections(root):
+    """Delete one-point sections and reconnect their descendants."""
+
+    def process(section):
+        replacements = []
+
+        for child in list(section.children):
+            section.disconnect(child)
+            replacements.extend(process(child))
+
+        if len(section.points) == 1 and section.section_type != "soma":
+            return replacements
+
+        for replacement in replacements:
+            section.connect(replacement, relation="child")
+
+        return [section]
+
+    return process(root)
 
 def load_morphologies(
     directory,
@@ -123,7 +156,11 @@ def load_morphologies(
 
         for root in read_swc(filename):
             _preprocess_geometry(root)
+            
+            _remove_consecutive_duplicate_points(root)
 
+            _remove_single_point_sections(root)
+            
             candidates = (
                 root.children
                 if root.section_type == "soma"

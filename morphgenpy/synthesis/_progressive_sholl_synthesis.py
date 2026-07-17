@@ -3,6 +3,7 @@
 import numpy as np
 
 
+
 def synthesize_progressive(
     tree,
     n_std=1.0,
@@ -38,8 +39,8 @@ def synthesize_progressive(
 
     Returns
     -------
-    NeuriteProfile
-        Soma containing the synthesized tree.
+    list of NeuriteProfile
+        Independently synthesized root profiles.
     """
     _validate_arguments(
         tree=tree,
@@ -200,7 +201,7 @@ def synthesize_progressive(
         "Progressive synthesis completed successfully.",
     )
 
-    return tree.soma
+    return tree.roots
 
 
 def _regenerate_window(
@@ -279,8 +280,7 @@ def _sholl_bin_status(
     bin_size,
 ):
     """Return the validation status for one Sholl bin."""
-    generated_plot = tree.soma.sholl_plot(
-        bin_size=bin_size,
+    generated_plot = tree.sholl_plot(
         max_distance=bin_index * bin_size,
     )
 

@@ -27,14 +27,62 @@ class NeuriteProfile:
             raise ValueError("step_size must be positive.")
 
         self.step_size = float(step_size)
-        self.step_count = 0 if section_type == "soma" else 1
+        self.step_count = 1 if section_type != "soma" else 0
         self.order = 0
         self.children = []
         self._parent = None
         self.section_type = section_type
         self.active = True
         self.internal_bifurcation = False
+        
+    def _connect_child(self, child):
+        """Connect ``child`` directly below this neurite."""
+        child._parent = self
+        self.children.append(child)
+        
+    def disconnect_from_parent(self):
+        """Disconnect this neurite from its parent and return the parent."""
+        if self._parent:
+            self.disconnect(self._parent)
 
+    def disconnect_from_children(self):
+        """Disconnect and return all child neurites."""
+        for child in self.children.copy():
+            self.disconnect(child)
+    
+    def connect(self, neurite, relation="parent"):
+        """
+        Connect another neurite as this neurite's parent or child.
+
+        Parameters
+        ----------
+        neurite : Neurite
+            Neurite to connect.
+        relation : {"parent", "child"}, default "parent"
+            Relationship of ``neurite`` relative to this neurite.
+        """
+        if relation == "child":
+            self._connect_child(neurite)
+        elif relation == "parent":
+            neurite._connect_child(self)
+
+    def disconnect(self, neurite):
+        """
+        Disconnect this neurite's parent or one of its children.
+
+        Parameters
+        ----------
+        neurite : Neurite
+            Specific neurite to disconnect.
+        """
+        if neurite is self._parent:
+            self._parent.children.remove(self)
+            self._parent = None
+
+        elif neurite in self.children:
+            self.children.remove(neurite)
+            neurite._parent = None
+        
     @property
     def parent(self):
         """Return the parent section."""
@@ -59,15 +107,10 @@ class NeuriteProfile:
     @property
     def distance_from_root(self):
         """Return the path distance to the start of the section."""
-        if self.section_type == "soma" or self.parent is None or self.parent.internal_bifurcation:
+        if self.section_type == "soma" or self.parent is None or self.internal_bifurcation:
             return 0.0
 
         return self.parent.distance_from_root + self.parent.length
-
-    @property
-    def distance_from_soma(self):
-        """Return the path distance to the start of the section."""
-        return self.distance_from_root
 
     def create_primary_dendrites(self, number, section_type):
         """Create primary dendrites from the soma."""
@@ -85,7 +128,7 @@ class NeuriteProfile:
             raise TypeError("number must be an integer.")
 
         if number <= 0:
-            raise ValueError("number must be positive.")
+            raise ValueError(f"number must be positive. {number}")
 
         if section_type == "soma":
             raise ValueError(
@@ -125,7 +168,6 @@ class NeuriteProfile:
         self._check_event_allowed()
 
         self.children = self._create_children()
-        self.internal_bifurcation = False
         self.active = False
 
         return self.children
@@ -146,18 +188,22 @@ class NeuriteProfile:
         self.children = []
         self.active = True
 
-    def bifurcate_internal(self):
+    def bifurcate_internal(self, internal_section_type="apical_oblique"):
         """
         Create an internal bifurcation.
 
         The first child remains active and the second child is inactive.
         """
+        raise Exception('Internal no more allowed')
         self._check_event_allowed()
 
         self.children = self._create_children()
+        
+        self.children[1].step_count = 0
         self.children[1].active = False
-
-        self.internal_bifurcation = True
+        self.children[1].internal_bifurcation = True
+        self.children[1].section_type = internal_section_type
+        
         self.active = False
 
         return self.children
@@ -180,7 +226,6 @@ class NeuriteProfile:
             )
 
         self.children = []
-        self.internal_bifurcation = False
         self.active = True
 
     def annihilate(self):
@@ -216,7 +261,7 @@ class NeuriteProfile:
             sections = [
                 section
                 for child in self.children
-                for section in child._iter_sections()
+                for section in child._iter_sections() if section.step_count > 0
             ]
         else:
             sections = list(self._iter_sections())
@@ -278,7 +323,6 @@ class NeuriteProfile:
 
         for child in children:
             child.parent = self
-            child.order = self.order + 1
 
         return children
 
@@ -304,7 +348,19 @@ class NeuriteProfile:
     def has_children(self):
         """Return whether this neurite has child branches. """
         return len(self.children) > 0
-
+    
+    def clone(self):
+        """Return a detached deep copy of this section and its descendants."""
+        clone = NeuriteProfile(
+            step_size=self.step_size,
+            section_type=self.section_type,
+        )
+        clone.step_count = self.step_count
+        clone.order = self.order
+        clone.active = self.active
+        clone.internal_bifurcation = self.internal_bifurcation
+        return clone
+    
 if __name__ == '__main__':
   s = NeuriteProfile(step_size=1.0, section_type="soma")
   s.create_primary_dendrites(3, "apical_dendrite")

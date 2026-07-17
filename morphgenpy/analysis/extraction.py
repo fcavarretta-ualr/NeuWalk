@@ -22,7 +22,6 @@ def extract_statistics(morphologies, bin_size):
         bifurcations = []
         annihilations = []
         internal_bifurcations = []
-
         for root in roots:
             root_sholl = root.sholl_plot(bin_size)
             bif, ann, internal = root._event_counts(bin_size)
@@ -48,9 +47,10 @@ def extract_statistics(morphologies, bin_size):
     bif_matrix = np.vstack([_pad(record[1], event_size) for record in records])
     ann_matrix = np.vstack([_pad(record[2], event_size) for record in records])
     internal_matrix = np.vstack([_pad(record[3], event_size) for record in records])
+
     mean_sholl = sholl_matrix.mean(axis=0)
     exposure = mean_sholl[:-1] * bin_size
-    internal_density = np.divide(internal_matrix.mean(axis=0), exposure, out=np.zeros(event_size, dtype=float), where=exposure > 0)
+    internal_density = internal_matrix.mean(axis=0) / bin_size
     no_bifurcation = bif_matrix.sum(axis=0) == 0
     no_annihilation = ann_matrix.sum(axis=0) == 0
     bifurcation_counts = bif_matrix.sum(axis=1)

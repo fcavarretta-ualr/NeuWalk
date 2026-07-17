@@ -36,9 +36,11 @@ class MorphologySynthesizer:
             Random number generator used by the RandomWalk objects.
         origin : array_like, optional
             Soma position. Default is ``[0, 0, 0]``.
-        theta : float or sequence of two floats, optional
+        theta : float, sequence of two floats, or dict, optional
             Polar angle or angular range used to generate the primary
-            directions.
+            directions. A dictionary may map a primary-dendrite count to a
+            dictionary containing ``theta`` and ``phi``. The ``"default"``
+            entry is used when the count is not present.
         phi : float or sequence of two floats, optional
             Azimuthal angle or angular range used to generate the primary
             directions.
@@ -48,7 +50,7 @@ class MorphologySynthesizer:
             Elongation bias or weighted elongation biases.
         bifurcation_bias : BifurcationBias, optional
             Bifurcation bias passed to each RandomWalk.
-        centrifugal : bool, default False
+        centrifugal : bool, default True
             Whether RandomWalk displacement is centrifugal.
         max_angle : float, default pi / 2
             Maximum angle used when sampling elongation directions.
@@ -58,9 +60,7 @@ class MorphologySynthesizer:
             Global weight applied to elongation biases.
         """
         if not isinstance(root, NeuriteProfile):
-            raise TypeError(
-                "root must be a NeuriteProfile."
-            )
+            raise TypeError("root must be a NeuriteProfile.")
 
         if origin is None:
             origin = np.zeros(3, dtype=float)
@@ -68,47 +68,48 @@ class MorphologySynthesizer:
         origin = np.asarray(origin, dtype=float)
 
         if origin.shape != (3,):
-            raise ValueError(
-                "origin must have shape (3,)."
-            )
+            raise ValueError("origin must have shape (3,).")
 
         if axis_direction is not None:
-            axis_direction = np.asarray(
-                axis_direction,
-                dtype=float,
-            )
+            axis_direction = np.asarray(axis_direction, dtype=float)
 
             if axis_direction.shape != (3,):
-                raise ValueError(
-                    "axis_direction must have shape (3,)."
-                )
+                raise ValueError("axis_direction must have shape (3,).")
 
-            if np.isclose(
-                np.linalg.norm(axis_direction),
-                0.0,
-            ):
-                raise ValueError(
-                    "axis_direction cannot be the zero vector."
-                )
+            if np.isclose(np.linalg.norm(axis_direction), 0.0):
+                raise ValueError("axis_direction cannot be the zero vector.")
 
         self.root = root
         self.rng = rng
         self.origin = origin.copy()
         self.theta = theta
         self.phi = phi
-
-        self.axis_direction = (
-            None
-            if axis_direction is None
-            else axis_direction.copy()
-        )
-
+        self.axis_direction = None if axis_direction is None else axis_direction.copy()
         self.elongation_bias = elongation_bias
         self.bifurcation_bias = bifurcation_bias
         self.centrifugal = bool(centrifugal)
         self.max_angle = max_angle
         self.elongation_random_weight = elongation_random_weight
         self.elongation_bias_weight = elongation_bias_weight
+
+    def _resolve_primary_angles(self, primary_count):
+        """Resolve theta and phi independently for the primary-dendrite count."""
+        theta = self.theta
+        phi = self.phi
+
+        if isinstance(theta, dict):
+            theta = theta.get(
+                primary_count,
+                theta["default"],
+            )
+
+        if isinstance(phi, dict):
+            phi = phi.get(
+                primary_count,
+                phi["default"],
+            )
+
+        return theta, phi
 
     def next_event(self, neurite):
         """
@@ -143,7 +144,7 @@ class MorphologySynthesizer:
                     "A bifurcation must have exactly two children."
                 )
 
-            if profile.internal_bifurcation:
+            if profile.children[1].internal_bifurcation:
                 return "bifurcate_internal"
 
             return "bifurcate"
@@ -168,18 +169,11 @@ class MorphologySynthesizer:
             Soma containing the generated RandomWalk tree.
         """
         if max_steps is not None:
-            if (
-                not isinstance(max_steps, int)
-                or isinstance(max_steps, bool)
-            ):
-                raise TypeError(
-                    "max_steps must be an integer or None."
-                )
+            if not isinstance(max_steps, int) or isinstance(max_steps, bool):
+                raise TypeError("max_steps must be an integer or None.")
 
             if max_steps < 0:
-                raise ValueError(
-                    "max_steps cannot be negative."
-                )
+                raise ValueError("max_steps cannot be negative.")
 
         soma = Neurite(
             points=[self.origin.copy()],
@@ -191,10 +185,14 @@ class MorphologySynthesizer:
         else:
             primary_profiles = [self.root]
 
+        theta, phi = self._resolve_primary_angles(
+            len(primary_profiles)
+        )
+
         primary_directions = misc.sphere_surface_points(
             n=len(primary_profiles),
-            theta=self.theta,
-            phi=self.phi,
+            theta=theta,
+            phi=phi,
         )
 
         if self.axis_direction is not None:
@@ -207,7 +205,7 @@ class MorphologySynthesizer:
             ])
 
         primary_walks = []
-        
+
         for profile, initial_direction in zip(
             primary_profiles,
             primary_directions,
@@ -226,75 +224,189 @@ class MorphologySynthesizer:
                 elongation_random_weight=self.elongation_random_weight,
                 elongation_bias_weight=self.elongation_bias_weight,
             )
-            
+
             primary_walks.append(walk)
 
         for r in soma.children:
             print(r)
-        active_neurites = list(
-            zip(
-                primary_profiles,
-                primary_walks,
-            )
-        )
+
+        active_neurites = {}
+
+        for profile, walk in zip(primary_profiles, primary_walks):
+            active_neurites.setdefault(profile.order, []).append((profile, walk))
 
         step = 0
 
         while active_neurites:
-            if (
-                max_steps is not None
-                and step >= max_steps
-            ):
-                break
+            current_order = min(active_neurites)
 
-            next_active_neurites = []
+            for _, walk in active_neurites[current_order]:
+                walk.active = True
+                
+            while active_neurites[current_order]:
+                if max_steps is not None and step >= max_steps:
+                    return soma
 
-            for neurite in active_neurites:
-                profile, walk = neurite
+                current_neurites = active_neurites[current_order]
+                active_neurites[current_order] = []
 
-                if not walk.active:
-                    continue
+                for neurite in current_neurites:
+                    profile, walk = neurite
 
-                event = self.next_event(neurite)
+                    if not walk.active:
+                        continue
 
-                if event == "elongate":
-                    walk.elongate()
-                    next_active_neurites.append(neurite)
+                    event = self.next_event(neurite)
 
-                elif event == "bifurcate":
-                    children = walk.bifurcate()
+                    if event == "elongate":
+                        walk.elongate()
+                        active_neurites[current_order].append(neurite)
 
-                    for child_profile, child_walk in zip(
-                        profile.children,
-                        children,
-                    ):
-                        next_active_neurites.append(
-                            (child_profile, child_walk)
-                        )
+                    elif event == "bifurcate":
+                        children = walk.bifurcate()
 
-                elif event == "bifurcate_internal":
-                    children = walk.bifurcate_internal()
+                        for child_profile, child_walk in zip(profile.children, children):
+                            active_neurites[child_profile.order].append((child_profile, child_walk))
 
-                    next_active_neurites.append(
-                        (
-                            profile.children[0],
-                            children[0],
-                        )
-                    )
+                    elif event == "bifurcate_internal":
+                        children = walk.bifurcate_internal()
+                        for child_profile, child_walk in zip(profile.children, children):
+                            active_neurites.setdefault(child_profile.order, list()).append((child_profile, child_walk))
 
-                elif event == "annihilate":
-                    walk.annihilate()
+                    elif event == "annihilate":
+                        walk.annihilate()
 
-                elif event is not None:
-                    raise RuntimeError(
-                        f"Unknown synthesis event: {event!r}."
-                    )
+                    elif event is not None:
+                        raise RuntimeError(f"Unknown synthesis event: {event!r}.")
 
-            # update state for all
-            for _, walk in active_neurites:
-                walk.update_state()
+                for _, walk in current_neurites:
+                    if walk.pending_event:
+                        walk.update_state()
 
-            active_neurites = next_active_neurites
-            step += 1
+                step += 1
+
+            del active_neurites[current_order]
 
         return soma
+
+    def describe(self):
+        """Print synthesized and experimental topology statistics."""
+        synthesized_primary_count = float(len(self.soma.children))
+        primary_range = self.primary_count_range_constraint
+
+        if primary_range is None:
+            experimental_primary = "N/A"
+        elif isinstance(primary_range, dict):
+            experimental_primary = (
+                f"{float(primary_range['min']):.1f}–"
+                f"{float(primary_range['max']):.1f}"
+            )
+        else:
+            experimental_primary = (
+                f"{float(primary_range[0]):.1f}–"
+                f"{float(primary_range[1]):.1f}"
+            )
+
+        print(
+            "Initial primary dendrites: "
+            f"synthesized={synthesized_primary_count:.1f}, "
+            f"experimental={experimental_primary}"
+        )
+
+        synthesized_bifurcation_count = float(
+            self.soma.bifurcation_count()
+        )
+        bifurcation_constraint = (
+            self.bifurcation_count_constraint
+        )
+
+        if bifurcation_constraint is None:
+            experimental_bifurcations = "N/A"
+        else:
+            experimental_bifurcations = (
+                f"{float(bifurcation_constraint['mean']):.1f} ± "
+                f"{float(bifurcation_constraint['std']):.1f}"
+            )
+
+        print(
+            "Bifurcation count: "
+            f"synthesized={synthesized_bifurcation_count:.1f}, "
+            f"experimental={experimental_bifurcations}"
+        )
+
+        sholl_constraint = self.sholl_plot_constraint
+
+        if sholl_constraint is None:
+            synthesized_sholl = np.asarray(
+                self.soma.sholl_plot(
+                    bin_size=self.bin_size,
+                ),
+                dtype=float,
+            )
+
+            print("Sholl plot:")
+            print("radius  synthesized")
+
+            for index, synthesized in enumerate(
+                synthesized_sholl
+            ):
+                radius = index * self.bin_size
+                print(
+                    f"{radius:.1f}  "
+                    f"{synthesized:.1f}"
+                )
+
+            return
+
+        experimental_mean = np.asarray(
+            sholl_constraint["mean"],
+            dtype=float,
+        )
+        experimental_std = np.asarray(
+            sholl_constraint["std"],
+            dtype=float,
+        )
+
+        if experimental_mean.ndim != 1 or experimental_std.shape != experimental_mean.shape:
+            raise ValueError(
+                "Sholl mean and standard deviation must be "
+                "one-dimensional arrays with equal shape."
+            )
+
+        max_distance = (
+            max(len(experimental_mean) - 1, 0)
+            * self.bin_size
+        )
+        synthesized_sholl = np.asarray(
+            self.soma.sholl_plot(
+                bin_size=self.bin_size,
+                max_distance=max_distance,
+            ),
+            dtype=float,
+        )
+
+        print("Sholl plot:")
+        print(
+            "radius  synthesized  "
+            "experimental mean  experimental std"
+        )
+
+        for index, (
+            synthesized,
+            mean,
+            std,
+        ) in enumerate(
+            zip(
+                synthesized_sholl,
+                experimental_mean,
+                experimental_std,
+            )
+        ):
+            radius = index * self.bin_size
+
+            print(
+                f"{radius:.1f}  "
+                f"{synthesized:.1f}  "
+                f"{mean:.1f}  "
+                f"{std:.1f}"
+            )

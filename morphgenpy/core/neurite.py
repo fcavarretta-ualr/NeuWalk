@@ -108,21 +108,13 @@ class Neurite:
     
     def disconnect_from_parent(self):
         """Disconnect this neurite from its parent and return the parent."""
-        parent = self.parent
-
-        if parent is not None:
-            self.disconnect(parent)
-
-        return parent
+        if self.parent:
+            self.disconnect(self.parent)
 
     def disconnect_from_children(self):
         """Disconnect and return all child neurites."""
-        children = self.children
-
-        for child in children:
+        for child in self.children:
             self.disconnect(child)
-
-        return children
     
     def connect(self, neurite, relation="parent"):
         """
@@ -316,7 +308,7 @@ class Neurite:
                     continue
 
                 is_internal = any(
-                    "oblique" in str(child.section_type).lower()
+                    child.section_type != self.section_type
                     for child in valid_children
                 )
 
@@ -394,7 +386,6 @@ class Neurite:
         for point_0, point_1 in segments:
             distance_0 = np.linalg.norm(point_0)
             distance_1 = np.linalg.norm(point_1)
-
             start = min(distance_0, distance_1)
             end = max(distance_0, distance_1)
             crossings += (radii >= start) & (radii < end)

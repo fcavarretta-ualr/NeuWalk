@@ -21,6 +21,8 @@ def translate_points(points, source, target=None):
     numpy.ndarray
         Translated copy of the points.
     """
+    is_list = type(points) == list
+    
     points = np.asarray(points, dtype=float)
     source = np.asarray(source, dtype=float)
 
@@ -35,7 +37,12 @@ def translate_points(points, source, target=None):
     if source.shape != (3,) or target.shape != (3,):
         raise ValueError("source and target must have shape (3,).")
 
-    return points + target - source
+    points = points + target - source
+
+    if is_list:
+        points = [p for p in points ]
+
+    return points
 
 class Random:
     """Small wrapper around a random-number generator."""
@@ -721,84 +728,79 @@ class AxialFrame:
     """Convert vectors between axial-local and global coordinates."""
 
     @staticmethod
-    def _basis(axis):
-        """Construct a right-handed basis whose local z-axis is `axis`."""
+    def rotation_matrix(axis):
+        """Return a rotation matrix whose local z-axis is aligned with axis."""
         axis = np.asarray(axis, dtype=float)
 
         if axis.shape != (3,):
-            raise ValueError(
-                "axis must have shape (3,)."
-            )
+            raise ValueError("axis must have shape (3,).")
 
         norm = np.linalg.norm(axis)
 
         if np.isclose(norm, 0.0):
-            raise ValueError(
-                "axis cannot be the zero vector."
-            )
+            raise ValueError("axis cannot be the zero vector.")
 
-        ez = axis / norm
+        axis = axis / norm
 
-        # Choose the global axis least aligned with ez.
-        reference = np.zeros(3)
-        reference[np.argmin(np.abs(ez))] = 1.0
+        theta = np.arccos(
+            np.clip(axis[2], -1.0, 1.0)
+        )
+        phi = np.arctan2(
+            axis[1],
+            axis[0],
+        )
 
-        ex = reference - np.dot(reference, ez) * ez
-        ex /= np.linalg.norm(ex)
+        cos_theta = np.cos(theta)
+        sin_theta = np.sin(theta)
+        cos_phi = np.cos(phi)
+        sin_phi = np.sin(phi)
 
-        ey = np.cross(ez, ex)
-
-        return ex, ey, ez
+        return np.array([
+            [
+                cos_phi * cos_theta,
+                -sin_phi,
+                cos_phi * sin_theta,
+            ],
+            [
+                sin_phi * cos_theta,
+                cos_phi,
+                sin_phi * sin_theta,
+            ],
+            [
+                -sin_theta,
+                0.0,
+                cos_theta,
+            ],
+        ])
 
     @staticmethod
     def to_global(vector, axis, center=None):
-        """
-        Convert a vector from axial-local to global coordinates.
-
-        The local z-axis is aligned with `axis`.
-        """
+        """Rotate an axial-local vector into global coordinates."""
         vector = np.asarray(vector, dtype=float)
-        
-        if center is None:
-            center = np.zeros(vector.shape)
-        center = np.array(center, dtype=float)
-            
-        if vector.shape != (3,):
-            raise ValueError(
-                "vector must have shape (3,)."
-            )
+        center = (
+            np.zeros(3, dtype=float)
+            if center is None
+            else np.asarray(center, dtype=float)
+        )
 
-        ex, ey, ez = AxialFrame._basis(axis)
-
-        return center + vector[0] * ex + vector[1] * ey + vector[2] * ez
+        return (
+            center
+            + AxialFrame.rotation_matrix(axis) @ vector
+        )
 
     @staticmethod
     def to_local(vector, axis, center=None):
-        """
-        Convert a vector from global to axial-local coordinates.
-
-        The local z-axis is aligned with `axis`.
-        """
+        """Rotate a global vector into axial-local coordinates."""
         vector = np.asarray(vector, dtype=float)
-
-        if center is None:
-            center = np.zeros(vector.shape)
-        center = np.array(center, dtype=float)
-            
-        if vector.shape != (3,):
-            raise ValueError(
-                "vector must have shape (3,)."
-            )
-
-        ex, ey, ez = AxialFrame._basis(axis)
-
-        return np.array(
-            [
-                np.dot(vector - center, ex),
-                np.dot(vector - center, ey),
-                np.dot(vector - center, ez),
-            ]
+        center = (
+            np.zeros(3, dtype=float)
+            if center is None
+            else np.asarray(center, dtype=float)
         )
+
+        rotation = AxialFrame.rotation_matrix(axis)
+
+        return rotation.T @ (vector - center)
 
 
 
@@ -859,14 +861,13 @@ def random_cone_direction(
             "max_angle must be finite."
         )
 
-    if not 0.0 <= max_angle <= np.pi:
+    if not 0.0 <= max_angle <= np.pi / 2:
         raise ValueError(
-            "max_angle must lie within [0, pi]."
+            "max_angle must lie within [0, pi / 2]."
         )
 
     # Uniform solid-angle sampling inside the cone.
-    cos_theta = np.cos(max_angle) + rng.random() * (1 - np.cos(max_angle))
-    theta = np.arccos(cos_theta)
+    theta = rng.random() * max_angle
     phi = rng.random() * 2.0 * np.pi
 
     local_direction = np.array(

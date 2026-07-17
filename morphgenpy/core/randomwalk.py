@@ -25,9 +25,9 @@ class RandomWalk(Neurite):
         active=True,
         section_type=None,
         max_angle=np.pi / 2,
-        elongation_random_weight=0.01,
-        elongation_random_hill_k=1.0,
-        elongation_random_hill_n=-1.0,
+        elongation_random_weight=0.0,
+        elongation_random_hill_k=None,
+        elongation_random_hill_n=None,
         elongation_bias_weight=1.0,
     ):
         """Initialize the random walk."""
@@ -93,6 +93,9 @@ class RandomWalk(Neurite):
 
         self.elongation_random_weight = elongation_random_weight
 
+        if elongation_random_hill_k is None:
+            elongation_random_hill_k = self.step_size
+            
         if not np.isscalar(elongation_random_hill_k):
             raise TypeError("elongation_random_hill_k must be a scalar.")
 
@@ -103,6 +106,9 @@ class RandomWalk(Neurite):
 
         self.elongation_random_hill_k = elongation_random_hill_k
 
+        if elongation_random_hill_n is None:
+            elongation_random_hill_n = -1
+            
         if not np.isscalar(elongation_random_hill_n):
             raise TypeError("elongation_random_hill_n must be a scalar.")
 
@@ -111,7 +117,7 @@ class RandomWalk(Neurite):
         if not np.isfinite(elongation_random_hill_n) or elongation_random_hill_n >= 0.0:
             raise ValueError("elongation_random_hill_n must be finite and less than 0.")
 
-        self.elongation_random_hill_n = elongation_random_hill_n
+        self.elongation_random_hill_n = float(elongation_random_hill_n)
 
         if not np.isscalar(elongation_bias_weight):
             raise TypeError("elongation_bias_weight must be a scalar.")
@@ -183,8 +189,10 @@ class RandomWalk(Neurite):
 
         direction = self.last_direction
         step_size = self._step_size(direction)
-
-        if not np.isclose(np.linalg.norm(self.first_point - self.origin), 0.0):
+        
+        # if it is the first point, do not compute bias
+        if not ( (self.parent is None or self.parent.section_type == "soma") and len(self.points) < 2 ):
+            # calculate the effect of the bias
             for weight, bias in self.elongation_biases:
                 value = bias.compute(self, direction)
 
@@ -205,23 +213,19 @@ class RandomWalk(Neurite):
 
                 step_size = self._step_size(direction)
 
+
+        # random component
         hill_value = misc.hill(
             step_size,
             self.elongation_random_hill_k,
             self.elongation_random_hill_n,
         )
 
-        if not np.isscalar(hill_value):
-            raise TypeError("misc.hill() must return a scalar.")
-
-        hill_value = float(hill_value)
-
-        if not np.isfinite(hill_value):
-            raise ValueError("misc.hill() must return a finite value.")
-
         random_component = self._sample_direction(direction) * hill_value
         direction = misc._normalize(direction + random_component * self.elongation_random_weight)
 
+        # check for centrifugal component
+        # if it is null, then correct the direction
         if self.centrifugal:
             centrifugal_direction = self._centrifugal_direction()
 
@@ -320,7 +324,7 @@ class RandomWalk(Neurite):
 
         if event == "internal_bifurcation":
             children = [
-                self._create_child(directions[0], active=True),
+                self._create_child(self.last_direction, active=True),
                 self._create_child(
                     directions[1],
                     active=True,

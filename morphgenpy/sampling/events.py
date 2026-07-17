@@ -256,6 +256,7 @@ class EventSampler:
 
         if start_bin == end_bin:
             selected_bin = start_bin
+
         else:
             boundary = (start_bin + 1) * self.bin_size
 
@@ -278,8 +279,7 @@ class EventSampler:
         return float(density[selected_bin] * step_length)
 
     def _probability_fn(self, neurite):
-        """Calculate event probabilities for the latest synthesis step."""
-        print(f'{neurite.distance_from_root}, {neurite.length}')        
+        """Calculate event probabilities for the latest synthesis step."""                
         distance_end = neurite.distance_from_root + neurite.length
         distance_start = distance_end - neurite.step_size
 

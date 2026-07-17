@@ -28,7 +28,7 @@ def main():
     parser.add_argument("--seed", type=int, default=1234)
     args = parser.parse_args()
     elongation_random_weight = 0.2
-    elongation_bias_weight = 0.4
+    elongation_bias_weight = 1
     
     stats = load_statistics(
         args.directory,
@@ -79,16 +79,16 @@ def main():
     print("sholl_plot:", topol_synthesizer.soma.sholl_plot(args.bin_size))
 
     elongation_bias = []
-    elongation_bias.append((0.001, biases.get_elongation("sibling_repulsion", 25.0, -2)))
-    elongation_bias.append((0.001, biases.get_elongation("nonrelated_repulsion", 10.0, -2)))
+    elongation_bias.append((0.002, biases.get_elongation("sibling_repulsion", 25.0, -2)))
+    elongation_bias.append((0.002, biases.get_elongation("nonrelated_repulsion", 10.0, -2)))
     elongation_bias.append((0.1, biases.get_elongation("truncated_cone_boundary", np.zeros(3), (800., 0., 0.), (2.5, 1.25), (100.0, 25.0), 0.5, 2)))
     bifurcation_bias = biases.get_bifurcation("radial_torsion", np.pi / 6)
     
     morph_synthesizer = MorphologySynthesizer(
         root=topol_synthesizer.soma,
         rng=rng,
-        theta=0,
-        phi=0,
+        theta={1:0, 'default':np.pi/6},
+        phi={1:0, 'default':(0, 2*np.pi)},
         axis_direction=np.array([0.0, 0.0, 1.0]),
         bifurcation_bias=bifurcation_bias,
         elongation_bias=elongation_bias,
@@ -151,7 +151,6 @@ def main():
     elongation_bias.append((0.001, biases.get_elongation("sibling_repulsion", 25.0, -2)))
     elongation_bias.append((0.001, biases.get_elongation("nonrelated_repulsion", 10.0, -2)))
     elongation_bias.append((0.1, biases.get_elongation("truncated_cone_boundary", np.zeros(3), (800., np.pi, 0.), (2.5, 1.25), (100.0, 25.0), 0.5, 2)))
-    elongation_bias_weight *= 2
     bifurcation_bias = biases.get_bifurcation("radial_torsion", np.pi / 6)
     
     morph_synthesizer = MorphologySynthesizer(

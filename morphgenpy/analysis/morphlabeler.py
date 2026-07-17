@@ -14,20 +14,20 @@ LABEL_CODE = {
     "soma": 1,
     "axon": 2,
     "basal_dendrite": 3,
-    "primary_apical_trunk": 4,
-    "primary_apical_trunk_oblique": 5,
-    "apical_bifurcation": 6,
-    "apical_bifurcation_oblique": 7,
+    "apical_dendrite": 4,
+    "apical_oblique": 5,
+    "apical_secondary_dendrite": 6,
+    "apical_secondary_oblique": 7,
 }
 
 LABELS_IN_ORDER = [
     "soma",
     "axon",
     "basal_dendrite",
-    "primary_apical_trunk",
-    "primary_apical_trunk_oblique",
-    "apical_bifurcation",
-    "apical_bifurcation_oblique",
+    "apical_dendrite",
+    "apical_oblique",
+    "apical_secondary_dendrite",
+    "apical_secondary_oblique",
     "unknown",
 ]
 
@@ -36,10 +36,10 @@ LABEL_COLORS = {
     "soma": "#000000",
     "axon": "#8c8c8c",
     "basal_dendrite": "#1f77b4",
-    "primary_apical_trunk": "#d62728",
-    "primary_apical_trunk_oblique": "#ff9896",
-    "apical_bifurcation": "#2ca02c",
-    "apical_bifurcation_oblique": "#98df8a",
+    "apical_dendrite": "#d62728",
+    "apical_oblique": "#ff9896",
+    "apical_secondary_dendrite": "#2ca02c",
+    "apical_secondary_oblique": "#98df8a",
 }
 
 DEFAULT_LABEL_BY_SWC_TYPE = {
@@ -47,10 +47,10 @@ DEFAULT_LABEL_BY_SWC_TYPE = {
     1: "soma",
     2: "axon",
     3: "basal_dendrite",
-    4: "primary_apical_trunk",
-    5: "primary_apical_trunk_oblique",
-    6: "apical_bifurcation",
-    7: "apical_bifurcation_oblique",
+    4: "apical_dendrite",
+    5: "apical_oblique",
+    6: "apical_secondary_dendrite",
+    7: "apical_secondary_oblique",
 }
 
 

@@ -1,3 +1,5 @@
+import numpy as np
+
 from ..sampling import EventSampler
 from ..profiles import NeuriteProfile
 from ._progressive_sholl_synthesis import synthesize_progressive
@@ -11,6 +13,7 @@ class TopologySynthesizer:
         step_size,
         bin_size,
         section_type=None,
+        internal_bifurcation_section_type=None,
         sholl_plot=None,
         bifurcation_density=None,
         annihilation_density=None,
@@ -34,6 +37,8 @@ class TopologySynthesizer:
             Width of each radial bin.
         section_type : str, optional
             Section type assigned to primary neurites.
+        internal_bifurcation_section_type : str, optional
+            Section type assigned to internal branches.
         sholl_plot : dict, optional
             Sholl statistics used by the main event sampler.
         bifurcation_density : array-like, optional
@@ -64,9 +69,18 @@ class TopologySynthesizer:
         self.rng = rng
         self.step_size = float(step_size)
         self.bin_size = float(bin_size)
+
+        assert section_type, "Specify section type"
         self.section_type = section_type
 
+        if internal_bifurcation_section_type is None:
+            internal_bifurcation_section_type = section_type
+        self.internal_bifurcation_section_type = internal_bifurcation_section_type
+        
+
         self.sholl_plot_constraint = sholl_plot
+        self.bifurcation_count = bifurcation_count
+        self.primary_count_range = primary_count_range
 
         self.main_event_sampler = EventSampler(
             rng=rng,
@@ -107,11 +121,7 @@ class TopologySynthesizer:
                 **parameters
             )
 
-        self.soma = NeuriteProfile(
-            step_size=step_size,
-            section_type="soma",
-        )
-
+        self.roots = []
         self.initialized = False
         self.synthesis_logs = []
 
@@ -133,15 +143,53 @@ class TopologySynthesizer:
             self.main_event_sampler.sample_primary_neurite_count()
         )
 
-        primary_neurites = self.soma.create_primary_dendrites(
-            number=primary_count,
-            section_type=self.section_type,
-        )
-
+        self.roots = [
+            NeuriteProfile(
+                step_size=self.step_size,
+                section_type=self.section_type,
+            )
+            for _ in range(primary_count)
+        ]
         self.initialized = True
 
-        return primary_neurites
+        return self.roots
     
+    def _iter_sections(self):
+        """Iterate over every section in every root."""
+        for root in self.roots:
+            yield from root._iter_sections()
+
+    def sholl_plot(self, max_distance=None):
+        """Return the sum of the Sholl plots over all roots."""
+        if not self.roots:
+            return np.zeros(1, dtype=int)
+
+        plots = [
+            np.asarray(
+                root.sholl_plot(
+                    bin_size=self.bin_size,
+                    max_distance=max_distance,
+                ),
+                dtype=int,
+            )
+            for root in self.roots
+        ]
+
+        size = max(len(plot) for plot in plots)
+        summed_plot = np.zeros(size, dtype=int)
+
+        for plot in plots:
+            summed_plot[:len(plot)] += plot
+
+        return summed_plot
+
+    def bifurcation_count(self):
+        """Return the total bifurcation count over all roots."""
+        return sum(
+            root.bifurcation_count()
+            for root in self.roots
+        )
+
     def synthesize_progressive(
         self,
         n_std=1.0,
@@ -165,8 +213,8 @@ class TopologySynthesizer:
 
         Returns
         -------
-        NeuriteProfile
-            Soma containing the synthesized tree.
+        list of NeuriteProfile
+            Synthesized root profiles.
         """
         return synthesize_progressive(
             tree=self,
@@ -188,8 +236,8 @@ class TopologySynthesizer:
 
         Returns
         -------
-        NeuriteProfile
-            Soma containing the synthesized tree.
+        list of NeuriteProfile
+            Synthesized root profiles.
         """
         if max_steps is not None:
             if not isinstance(max_steps, int):
@@ -210,7 +258,6 @@ class TopologySynthesizer:
             self.synthesis_logs.append(
                 [
                     {
-                        "neurite": self.soma,
                         "event": "initialize",
                     }
                 ]
@@ -218,11 +265,8 @@ class TopologySynthesizer:
         else:
             active_neurites = [
                 neurite
-                for neurite in self.soma._iter_sections()
-                if (
-                    neurite.active
-                    and neurite.section_type != "soma"
-                )
+                for neurite in self._iter_sections()
+                if neurite.active
             ]
 
         step = 0
@@ -260,10 +304,11 @@ class TopologySynthesizer:
                     next_active_neurites.extend(children)
 
                 elif event == "bifurcate_internal":
-                    children = (
-                        neurite.bifurcate_internal()
+                    children = neurite.bifurcate_internal(
+                        section_type=(
+                            self.internal_bifurcation_section_type
+                        )
                     )
-
                     # The first child continues synthesis. The second child
                     # remains inactive until activate_internal_branches().
                     next_active_neurites.append(
@@ -283,7 +328,7 @@ class TopologySynthesizer:
 
         self.synthesis_logs.append(synthesis_log)
 
-        return self.soma
+        return self.roots
 
     
     def _neurite_is_secondary(self, neurite):
@@ -321,39 +366,32 @@ class TopologySynthesizer:
         activation_log = []
         activated_branches = []
 
-        previous_event_sampler = self.event_sampler
+       
 
-        for neurite in self.soma._iter_sections():
+        for neurite in self._iter_sections():
+
             if not neurite.internal_bifurcation:
                 continue
 
-            if len(neurite.children) != 2:
-                raise RuntimeError(
-                    "An internal bifurcation must have "
-                    "exactly two children."
-                )
 
-            branch = neurite.children[1]
-
-            if not branch.active:
-                branch.active = True
-                activated_branches.append(branch)
+            if not neurite.active:
+                neurite.step_count += 1
+                neurite.active = True
+                activated_branches.append(neurite)
 
                 activation_log.append(
                     {
-                        "neurite": branch,
+                        "neurite": neurite,
                         "event": "activate_internal_branch",
                     }
                 )
 
         if activation_log:
-            self.event_sampler = (
-                self.internal_event_sampler
-            )
+            previous_event_sampler = self.event_sampler
+            self.event_sampler = self.internal_event_sampler
 
             activation_log.append(
                 {
-                    "neurite": self.soma,
                     "event": "switch_event_sampler",
                     "previous_event_sampler": (
                         previous_event_sampler
@@ -383,8 +421,8 @@ class TopologySynthesizer:
         synthesis_log = self.synthesis_logs.pop()
 
         for record in reversed(synthesis_log):
-            neurite = record["neurite"]
             event = record["event"]
+            neurite = record.get("neurite")
 
             if event == "elongate":
                 neurite.undo_elongate()
@@ -399,12 +437,6 @@ class TopologySynthesizer:
                 neurite.undo_annihilate()
 
             elif event == "switch_event_sampler":
-                if neurite is not self.soma:
-                    raise RuntimeError(
-                        "The sampler-switch record must "
-                        "reference the soma."
-                    )
-
                 self.event_sampler = record[
                     "previous_event_sampler"
                 ]
@@ -425,19 +457,103 @@ class TopologySynthesizer:
                 neurite.active = False
 
             elif event == "initialize":
-                if neurite is not self.soma:
-                    raise RuntimeError(
-                        "The initialization record must "
-                        "reference the soma."
-                    )
-
-                self.soma.children = []
+                self.roots = []
                 self.initialized = False
 
             else:
                 raise RuntimeError(
                     f"Unknown synthesis event: {event!r}."
                 )
+
+    def describe(self):
+        """Print synthesized and experimental topology statistics."""
+        synthesized_primary_count = len(self.roots)
+
+        if self.primary_count_range is None:
+            experimental_primary_count = "N/A"
+        else:
+            experimental_primary_count = (
+                f"{self.primary_count_range['min']:.1f}–"
+                f"{self.primary_count_range['max']:.1f}"
+            )
+
+        print(
+            "Initial primary dendrites: "
+            f"synthesized={synthesized_primary_count:.1f}, "
+            f"experimental={experimental_primary_count}"
+        )
+
+        synthesized_bifurcation_count = (
+            self.bifurcation_count()
+        )
+
+        if self.bifurcation_count is None:
+            experimental_bifurcation_count = "N/A"
+        else:
+            experimental_bifurcation_count = (
+                f"{self.bifurcation_count['mean']:.1f} ± "
+                f"{self.bifurcation_count['std']:.1f}"
+            )
+
+        print(
+            "Bifurcation count: "
+            f"synthesized={synthesized_bifurcation_count:.1f}, "
+            f"experimental={experimental_bifurcation_count}"
+        )
+
+        if self.sholl_plot_constraint is None:
+            synthesized_sholl = self.sholl_plot()
+
+            print("Sholl plot:")
+            print("radius  synthesized")
+
+            for index, synthesized in enumerate(
+                synthesized_sholl
+            ):
+                print(
+                    f"{index * self.bin_size:.1f}  "
+                    f"{synthesized:.1f}"
+                )
+
+            return
+
+        experimental_mean = np.asarray(
+            self.sholl_plot_constraint["mean"],
+            dtype=float,
+        )
+        experimental_std = np.asarray(
+            self.sholl_plot_constraint["std"],
+            dtype=float,
+        )
+        synthesized_sholl = self.sholl_plot(
+            max_distance=(
+                len(experimental_mean) - 1
+            ) * self.bin_size,
+        )
+
+        print("Sholl plot:")
+        print(
+            "radius  synthesized  "
+            "experimental mean  experimental std"
+        )
+
+        for index, (
+            synthesized,
+            mean,
+            std,
+        ) in enumerate(
+            zip(
+                synthesized_sholl,
+                experimental_mean,
+                experimental_std,
+            )
+        ):
+            print(
+                f"{index * self.bin_size:.1f}  "
+                f"{synthesized:.1f}  "
+                f"{mean:.1f}  "
+                f"{std:.1f}"
+            )
 
     def use_main_event_sampler(self):
         """Set the main event sampler as active."""
