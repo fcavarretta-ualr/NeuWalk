@@ -190,7 +190,8 @@ def main():
 
 
         rng = Random(args.seed)
-
+        del params['bifurcation_internal_density']
+        del params['internal_event_sampler_parameters']
         topol_synthesizer = TopologySynthesizer(
             rng=rng,
             step_size=args.step_size,

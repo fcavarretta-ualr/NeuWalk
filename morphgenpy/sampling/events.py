@@ -14,7 +14,6 @@ class EventSampler:
     EVENTS = (
         "bifurcate",
         "annihilate",
-        "bifurcate_internal",
         "elongate",
     )
 
@@ -26,7 +25,6 @@ class EventSampler:
         sholl_plot=None,
         bifurcation_density=None,
         annihilation_density=None,
-        bifurcation_internal_density=None,
         bifurcation_count=None,
         primary_count_range=None,
         no_bifurcation_bins=None,
@@ -49,8 +47,6 @@ class EventSampler:
             Radial bifurcation density.
         annihilation_density : array-like, optional
             Radial annihilation density.
-        bifurcation_internal_density : float or array-like, optional
-            Radial internal-bifurcation density.
         bifurcation_count : dict, optional
             Bifurcation-count statistics used with ``sholl_plot``.
         primary_count_range : dict, optional
@@ -81,16 +77,14 @@ class EventSampler:
         
         (
             self.bifurcation_density,
-            self.annihilation_density,
-            self.bifurcation_internal_density
+            self.annihilation_density
         ) = self._initialize_densities(
             sholl_plot=sholl_plot,
             bifurcation_density=bifurcation_density,
             annihilation_density=annihilation_density,
             bifurcation_count=bifurcation_count,
             no_bifurcation_bins=no_bifurcation_bins,
-            no_annihilation_bins=no_annihilation_bins,
-            bifurcation_internal_density=bifurcation_internal_density
+            no_annihilation_bins=no_annihilation_bins
         )
 
 
@@ -113,8 +107,7 @@ class EventSampler:
         annihilation_density,
         bifurcation_count,
         no_bifurcation_bins,
-        no_annihilation_bins,
-        bifurcation_internal_density
+        no_annihilation_bins
     ):
         """Initialize bifurcation and annihilation densities."""
         has_sholl_plot = sholl_plot is not None
@@ -150,8 +143,7 @@ class EventSampler:
             self.step_size,
             bifurcation_count=bifurcation_count,
             no_bifurcation_bins=no_bifurcation_bins,
-            no_annihilation_bins=no_annihilation_bins,
-            bifurcation_internal_density=bifurcation_internal_density
+            no_annihilation_bins=no_annihilation_bins
         )
 
         return (
@@ -162,11 +154,7 @@ class EventSampler:
             np.asarray(
                 rates["annihilation_rate"],
                 dtype=float,
-            ),
-            np.asarray(
-                rates["internal_bifurcation_rate"],
-                dtype=float,
-            ),            
+            )        
         )
 
 
@@ -181,12 +169,6 @@ class EventSampler:
                 f"{self.annihilation_density.shape}."
             )
 
-        if self.bifurcation_internal_density.shape != expected_shape:
-            raise ValueError(
-                "bifurcation_internal_density must have shape "
-                f"{expected_shape}; got "
-                f"{self.bifurcation_internal_density.shape}."
-            )
 
     def _initialize_primary_count(
         self,
@@ -296,12 +278,7 @@ class EventSampler:
                 self.annihilation_density,
                 distance_start,
                 distance_end,
-            ),
-            self._integrate_density(
-                self.bifurcation_internal_density,
-                distance_start,
-                distance_end,
-            ),
+            )
         )
 
     def sample_event(self, neurite):

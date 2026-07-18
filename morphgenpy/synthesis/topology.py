@@ -13,16 +13,13 @@ class TopologySynthesizer:
         step_size,
         bin_size,
         section_type=None,
-        internal_bifurcation_section_type=None,
         sholl_plot=None,
         bifurcation_density=None,
         annihilation_density=None,
-        bifurcation_internal_density=None,
         bifurcation_count=None,
         primary_count_range=None,
         no_bifurcation_bins=None,
         no_annihilation_bins=None,
-        internal_event_sampler_parameters=None,
     ):
         """
         Initialize the tree profile and its event samplers.
@@ -37,16 +34,12 @@ class TopologySynthesizer:
             Width of each radial bin.
         section_type : str, optional
             Section type assigned to primary neurites.
-        internal_bifurcation_section_type : str, optional
-            Section type assigned to internal branches.
         sholl_plot : dict, optional
             Sholl statistics used by the main event sampler.
         bifurcation_density : array-like, optional
             Main radial bifurcation density.
         annihilation_density : array-like, optional
             Main radial annihilation density.
-        bifurcation_internal_density : float or array-like, optional
-            Main radial internal-bifurcation density.
         bifurcation_count : dict, optional
             Bifurcation-count statistics used by the main sampler.
         primary_count_range : dict, optional
@@ -55,10 +48,6 @@ class TopologySynthesizer:
             Main bins where bifurcation is disabled.
         no_annihilation_bins : array-like, optional
             Main bins where annihilation is disabled.
-        internal_event_sampler_parameters : dict, optional
-            Parameters used to initialize the event sampler for internal
-            branches. ``rng``, ``step_size``, and ``bin_size`` default to the
-            values used by the main event sampler.
         """
         if step_size <= 0:
             raise ValueError("step_size must be positive.")
@@ -71,12 +60,7 @@ class TopologySynthesizer:
         self.bin_size = float(bin_size)
 
         assert section_type, "Specify section type"
-        self.section_type = section_type
-
-        if internal_bifurcation_section_type is None:
-            internal_bifurcation_section_type = section_type
-        self.internal_bifurcation_section_type = internal_bifurcation_section_type
-        
+        self.section_type = section_type       
 
         self.sholl_plot_constraint = sholl_plot
         self.bifurcation_count = bifurcation_count
@@ -89,36 +73,12 @@ class TopologySynthesizer:
             sholl_plot=sholl_plot,
             bifurcation_density=bifurcation_density,
             annihilation_density=annihilation_density,
-            bifurcation_internal_density=bifurcation_internal_density,
             bifurcation_count=bifurcation_count,
             primary_count_range=primary_count_range,
             no_bifurcation_bins=no_bifurcation_bins,
             no_annihilation_bins=no_annihilation_bins,
         )
         self.event_sampler = self.main_event_sampler
-        self.internal_event_sampler = None
-
-        if internal_event_sampler_parameters is not None:
-            if not isinstance(
-                internal_event_sampler_parameters,
-                dict,
-            ):
-                raise TypeError(
-                    "internal_event_sampler_parameters must be "
-                    "a dictionary."
-                )
-
-            parameters = dict(
-                internal_event_sampler_parameters
-            )
-
-            parameters.setdefault("rng", rng)
-            parameters.setdefault("step_size", step_size)
-            parameters.setdefault("bin_size", bin_size)
-
-            self.internal_event_sampler = EventSampler(
-                **parameters
-            )
 
         self.roots = []
         self.initialized = False
@@ -302,18 +262,6 @@ class TopologySynthesizer:
                     children = neurite.bifurcate()
                     next_active_neurites.extend(children)
 
-                elif event == "bifurcate_internal":
-                    children = neurite.bifurcate_internal(
-                        section_type=(
-                            self.internal_bifurcation_section_type
-                        )
-                    )
-                    # The first child continues synthesis. The second child
-                    # remains inactive until activate_internal_branches().
-                    next_active_neurites.append(
-                        children[0]
-                    )
-
                 elif event == "annihilate":
                     neurite.annihilate()
 
@@ -329,80 +277,7 @@ class TopologySynthesizer:
 
         return self.roots
 
-    
-    def _neurite_is_secondary(self, neurite):
-        """ check whether the neurite is seconday by comparing bifurcation and annihilation rates """
-        # we want to perform the check only on neurites which are annihilated
-        assert not neurite.active and not neurite.has_children()
-
-        # check the probability
-        pb, pa, pbi = self.event_sampler._probability_fn(neurite)
         
-        pe = 1 - pb - pa # calculating elongation probability whici also accounts for pbi
-
-        # if annihilation occur where annihilation is dominant
-        # the neurite is not secondary
-        return not ( pa >= pb and pa >= pe )
-        
-    def activate_internal_branches(self):
-        """
-        Activate inactive branches created by internal bifurcations.
-
-        The internal event sampler becomes active when at least one internal
-        branch is activated. The activation and sampler change are recorded
-        as one reversible log entry.
-
-        Returns
-        -------
-        list of NeuriteProfile
-            Internal branches that were activated.
-        """
-        if self.internal_event_sampler is None:
-            raise RuntimeError(
-                "No internal event sampler was configured."
-            )
-
-        activation_log = []
-        activated_branches = []
-
-       
-
-        for neurite in self._iter_sections():
-
-            if not neurite.internal_bifurcation:
-                continue
-
-
-            if not neurite.active:
-                neurite.step_count += 1
-                neurite.active = True
-                activated_branches.append(neurite)
-
-                activation_log.append(
-                    {
-                        "neurite": neurite,
-                        "event": "activate_internal_branch",
-                    }
-                )
-
-        if activation_log:
-            previous_event_sampler = self.event_sampler
-            self.event_sampler = self.internal_event_sampler
-
-            activation_log.append(
-                {
-                    "event": "switch_event_sampler",
-                    "previous_event_sampler": (
-                        previous_event_sampler
-                    ),
-                }
-            )
-
-            self.synthesis_logs.append(
-                activation_log
-            )
-
-        return activated_branches
 
     def undo_synthesize(self):
         """
@@ -429,9 +304,6 @@ class TopologySynthesizer:
             elif event == "bifurcate":
                 neurite.undo_bifurcate()
 
-            elif event == "bifurcate_internal":
-                neurite.undo_bifurcate_internal()
-
             elif event == "annihilate":
                 neurite.undo_annihilate()
 
@@ -439,21 +311,6 @@ class TopologySynthesizer:
                 self.event_sampler = record[
                     "previous_event_sampler"
                 ]
-
-            elif event == "activate_internal_branch":
-                if not neurite.active:
-                    raise RuntimeError(
-                        "The internal branch is already inactive."
-                    )
-
-                if neurite.children:
-                    raise RuntimeError(
-                        "Cannot deactivate an internal branch "
-                        "while it has synthesized children. Undo "
-                        "its subsequent synthesis first."
-                    )
-
-                neurite.active = False
 
             elif event == "initialize":
                 self.roots = []
@@ -554,15 +411,3 @@ class TopologySynthesizer:
                 f"{std:.1f}"
             )
 
-    def use_main_event_sampler(self):
-        """Set the main event sampler as active."""
-        self.event_sampler = self.main_event_sampler
-
-    def use_internal_event_sampler(self):
-        """Set the internal-branch event sampler as active."""
-        if self.internal_event_sampler is None:
-            raise RuntimeError(
-                "No internal event sampler was configured."
-            )
-
-        self.event_sampler = self.internal_event_sampler

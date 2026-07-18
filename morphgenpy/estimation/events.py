@@ -2,11 +2,7 @@ from pyomo.environ import *
 import numpy as np
 from pyomo.core.expr.numeric_expr import Expr_if
 
-eps = 1e-8
-log3 = log(3)
-
 _Bif_Var_Penalty = 5.0
-_Entropic_Penalty = 0.0
 
 def _entropy_term(p):
     return Expr_if(
@@ -141,8 +137,7 @@ def event_rates(
     step_size,
     bifurcation_count=None,
     no_bifurcation_bins=None,
-    no_annihilation_bins=None,
-    bifurcation_internal_density=None
+    no_annihilation_bins=None
 ):
 
     """
@@ -241,7 +236,7 @@ def event_rates(
 ##    Returns:
 ##        np.ndarray: [x[0], x[1], objective_value]
 
-    global _Bif_Var_Penalty, _Entropic_Penalty
+    global _Bif_Var_Penalty
 
 
     # Keep data only up to the first zero in either mean or std (whichever occurs earlier)
@@ -264,12 +259,7 @@ def event_rates(
     else:
         no_annihilation_bins = np.array(no_annihilation_bins[:i_non_zeros])
         
-        
-    # oblique density
-    if bifurcation_internal_density is None:
-        bifurcation_internal_density = np.zeros(i_non_zeros-1)
-    else:
-        bifurcation_internal_density = np.array(bifurcation_internal_density[:i_non_zeros-1])
+    
         
     # Use bifurcation mean and variance if available; otherwise set to None
     n_bif = [bifurcation_count['mean'], bifurcation_count['std'] ** 2] if bifurcation_count else None
@@ -288,7 +278,7 @@ def event_rates(
     
     # Define index set and variables
     model.b = Var(range(gamma.size), domain=NonNegativeReals, initialize=init_b)
-
+    
     # expression for probabilities
     model.pa = Expression(
         model.I,
@@ -304,23 +294,6 @@ def event_rates(
         model.I,
         rule=lambda model, i: 1 - (2 * model.b[i] - gamma[i]) * step_size,
     )
-
-    model.po = Expression(
-        model.I,
-        rule=lambda model, i: bifurcation_internal_density[i] * step_size,
-    ) 
-
-    # compute entropy
-    model.H = Expression(
-        model.I,
-        rule=lambda model, i: -(
-            _entropy_term(model.pa[i])
-            + _entropy_term(model.pb[i])
-            + _entropy_term(model.pe[i])
-            + _entropy_term(model.po[i])
-        ),
-    )
-
     
     # define 1 slack variables for eventual constraints of variance of bifurcations
     model.s = Var(range(2), domain=Reals)
@@ -347,8 +320,8 @@ def event_rates(
         model.constraints.add(model.pe[i] <= 1)  
         model.constraints.add(model.pe[i] >= 0)
 
-        model.constraints.add(model.pe[i] + model.pa[i] + model.pb[i] + model.po[i] <= 1)  
-        model.constraints.add(model.pe[i] + model.pa[i] + model.pb[i] + model.po[i] >= 0)        
+        model.constraints.add(model.pe[i] + model.pa[i] + model.pb[i] <= 1)  
+        model.constraints.add(model.pe[i] + model.pa[i] + model.pb[i] >= 0)        
         
     # if we have number of bifurcations, use it as contraints
     if n_bif:        
@@ -366,7 +339,7 @@ def event_rates(
         
     # Objective
     model.obj = Objective(
-        expr=sum(_mk_objective(model.b, gamma, Z, V, bin_size)) + _Bif_Var_Penalty * model.s[0] ** 2 + _Entropic_Penalty * sum(model.H),
+        expr=sum(_mk_objective(model.b, gamma, Z, V, bin_size)) + _Bif_Var_Penalty * model.s[0] ** 2,
         sense=minimize
     )
   
@@ -385,6 +358,5 @@ def event_rates(
     # implement barrier at the end of the sholl plots
     b = np.append(b, 0.)
     a = np.append(a, np.inf)
-    bifurcation_internal_density = np.append(bifurcation_internal_density, 0.)
 
-    return { 'bifurcation_rate':b, 'annihilation_rate':a, 'internal_bifurcation_rate':bifurcation_internal_density }
+    return { 'bifurcation_rate':b, 'annihilation_rate':a }
