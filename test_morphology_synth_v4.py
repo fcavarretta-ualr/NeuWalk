@@ -219,10 +219,10 @@ def main():
             step_size=args.step_size,
             section_type="soma",
         )
-        soma.children = list(topol_synthesizer.roots)
-        
-        for root in soma.children:
-            root.parent = soma
+
+        for r in topol_synthesizer.roots:
+          soma.connect(r, relation="child")
+
 
         # store profile
         profiles[section_type] = soma

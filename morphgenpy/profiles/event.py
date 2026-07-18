@@ -1,8 +1,8 @@
 import numpy as np
-from ..core.neurite_object import NeuriteObject
+from .neurite_object import NeuriteObject
 
 
-class NeuriteProfile(NeuriteObject):
+class EventProfile(NeuriteObject):
     """
     Represent a soma or neurite section during synthesis.
 
@@ -67,10 +67,16 @@ class NeuriteProfile(NeuriteObject):
                 "A primary dendrite cannot have section_type='soma'."
             )
 
-        for _ in range(number):
-            self.connect(
-                NeuriteProfile(self.step_size, section_type=section_type),
-                relation="child")
+        self.children = [
+            EventProfile(
+                step_size=self.step_size,
+                section_type=section_type,
+            )
+            for _ in range(number)
+        ]
+
+        for child in self.children:
+            child.connect(self, relation="parent")
 
         return self.children
 
@@ -93,12 +99,7 @@ class NeuriteProfile(NeuriteObject):
         """Create two active children and deactivate the parent."""
         self._check_event_allowed()
 
-        for _ in range(2):
-            self.connect(
-                NeuriteProfile(self.step_size, section_type=self.section_type),
-                relation="child"
-                )
-            
+        self.children = self._create_children()
         self.active = False
 
         return self.children
@@ -108,11 +109,15 @@ class NeuriteProfile(NeuriteObject):
         if self.active:
             raise RuntimeError("The section has not bifurcated.")
 
+        if self.internal_bifurcation:
+            raise RuntimeError(
+                "Use undo_bifurcate_internal() instead."
+            )
 
         if len(self.children) != 2:
             raise RuntimeError("No bifurcation is available to undo.")
 
-        self.disconnect_from_children()
+        self.children = []
         self.active = True
 
     def annihilate(self):
@@ -134,18 +139,7 @@ class NeuriteProfile(NeuriteObject):
             )
 
         self.active = True
-        
-    def _check_event_allowed(self):
-        """Check whether the section can perform a synthesis event."""
-        if self.section_type == "soma":
-            raise RuntimeError(
-                "A soma cannot elongate, bifurcate, or annihilate."
-            )
 
-        if not self.active:
-            raise RuntimeError(
-                "An inactive neurite section cannot perform an event."
-            )
 
     def _calculate_max_distance(self, bin_size):
         # position from which calculate distance
@@ -179,11 +173,29 @@ class NeuriteProfile(NeuriteObject):
 
         crossings = np.zeros(len(radii), dtype=int)
 
-        for neurite in neurites:
-            start = neurite.distance_from_root
-            end = start + neurite.length
+        for section in sections:
+            start = section.distance_from_root
+            end = start + section.length
 
             crossings += (radii >= start) & (radii < end)
 
         return crossings
 
+    
+if __name__ == '__main__':
+  s = NeuriteProfile(step_size=1.0, section_type="soma")
+  s.create_primary_dendrites(3, "apical_dendrite")
+
+  children = []
+  for ch in s.children:
+      for _ in range(50):
+        ch.elongate()
+
+      children += ch.bifurcate()
+
+      
+  for ch in children:
+    for _ in range(50):
+      ch.elongate()
+
+  print(s.sholl_plot())

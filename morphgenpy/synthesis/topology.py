@@ -156,7 +156,7 @@ class TopologySynthesizer:
     def _iter_sections(self):
         """Iterate over every section in every root."""
         for root in self.roots:
-            yield from root._iter_sections()
+            yield from root.subtree
 
     def sholl_plot(self, max_distance=None):
         """Return the sum of the Sholl plots over all roots."""

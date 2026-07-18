@@ -173,8 +173,8 @@ class MorphologySynthesizer:
                     "A bifurcation must have exactly two children."
                 )
 
-            if profile.children[1].internal_bifurcation:
-                return "bifurcate_internal"
+##            if profile.children[1].internal_bifurcation:
+##                return "bifurcate_internal"
 
             return "bifurcate"
 

@@ -237,7 +237,6 @@ class RandomWalk(Neurite):
 
         point = self._generate_point(direction)
         self.pending_event = {"event": "elongation", "point": point, "direction": direction}
-
         return point
 
     def bifurcate(self):
