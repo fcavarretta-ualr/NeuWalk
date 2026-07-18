@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 
 def plot_morphology(
-    neurite,
+    neurite_list,
     section_colors=None,
     ax=None,
     linewidth=1.5,
@@ -31,6 +31,9 @@ def plot_morphology(
     matplotlib.axes.Axes
         The 3D axis.
     """
+    if type(neurite_list) != list:
+        neurite_list = [neurite_list]
+
     if section_colors is None:
         section_colors = {}
 
@@ -40,35 +43,37 @@ def plot_morphology(
 
     all_points = []
 
-    for section in neurite.subtree:
-        points = np.asarray(section.points, dtype=float)
 
-        if len(points) == 0:
-            continue
+    for neurite in neurite_list:
+        for section in neurite.subtree:
+            points = np.asarray(section.points, dtype=float)
 
-        color = section_colors.get(
-            section.section_type,
-            "black",
-        )
+            if len(points) == 0:
+                continue
 
-        if section.parent is not None and len(section.parent.points):
-            parent_endpoint = np.asarray(
-                section.parent.points[-1],
-                dtype=float,
+            color = section_colors.get(
+                section.section_type,
+                "black",
             )
 
-            if not np.allclose(parent_endpoint, points[0]):
-                points = np.vstack((parent_endpoint, points))
+            if section.parent is not None and len(section.parent.points):
+                parent_endpoint = np.asarray(
+                    section.parent.points[-1],
+                    dtype=float,
+                )
 
-        ax.plot(
-            points[:, 0],
-            points[:, 1],
-            points[:, 2],
-            color=color,
-            linewidth=linewidth,
-        )
+                if not np.allclose(parent_endpoint, points[0]):
+                    points = np.vstack((parent_endpoint, points))
 
-        all_points.append(points)
+            ax.plot(
+                points[:, 0],
+                points[:, 1],
+                points[:, 2],
+                color=color,
+                linewidth=linewidth,
+            )
+
+            all_points.append(points)
 
     if all_points:
         _set_equal_axes(

@@ -95,7 +95,6 @@ class TopologySynthesizer:
             no_bifurcation_bins=no_bifurcation_bins,
             no_annihilation_bins=no_annihilation_bins,
         )
-
         self.event_sampler = self.main_event_sampler
         self.internal_event_sampler = None
 

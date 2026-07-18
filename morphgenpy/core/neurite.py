@@ -134,7 +134,7 @@ class Neurite:
         else:
             raise Exception(f"Unknown relation {relation}")
 
-    def disconnect(self, neurite):
+    def disconnect(self, neurite=None):
         """
         Disconnect this neurite's parent or one of its children.
 
@@ -143,6 +143,11 @@ class Neurite:
         neurite : Neurite
             Specific neurite to disconnect.
         """
+        if neurite is None:
+            self.disconnect_from_parent()
+            self.disconnect_from_children()
+            return
+        
         if neurite is self.parent:
             self.parent._children.remove(self)
             self.parent = None

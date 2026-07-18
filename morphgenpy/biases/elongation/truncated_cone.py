@@ -21,11 +21,7 @@ def truncated_cone_boundary(
     length, theta, phi = axis
 
     # axis alignment
-    axis_direction = np.array([
-        np.sin(theta) * np.cos(phi),
-        np.sin(theta) * np.sin(phi),
-        np.cos(theta),
-    ])
+    axis_direction = misc.EllipsoidalCoordinates.to_cartesian((1.0, theta, phi))
 
     # relative coordinates of the point
     rel_point = misc.AxialFrame.to_local(reference_dendrite.current_point, axis_direction, center=origin)
@@ -76,6 +72,7 @@ def truncated_cone_boundary(
 
 @BiasRegistry.register_elongation("truncated_cone_boundary")
 def truncated_cone_boundary_bias(
+    rng,
     reference_dendrite,
     reference_direction, 
     origin,
@@ -88,7 +85,7 @@ def truncated_cone_boundary_bias(
 ):
 
 
-    direction = truncated_cone_boundary(
+    return truncated_cone_boundary(
         reference_dendrite,
         origin,
         axis,
@@ -99,12 +96,6 @@ def truncated_cone_boundary_bias(
         strict=strict
     )
 
-
-
-    if direction is None:
-        return None
-
-    return direction
 
 
 

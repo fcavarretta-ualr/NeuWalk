@@ -19,6 +19,7 @@ class RandomWalk(Neurite):
         initial_direction=None,
         elongation_bias=None,
         bifurcation_bias=None,
+        bifurcation_internal_bias=None,
         internal_branch=None,
         centrifugal=True,
         parent=None,
@@ -62,12 +63,14 @@ class RandomWalk(Neurite):
 
         self.elongation_biases = self._prepare_elongation_biases(elongation_bias)
         self._validate_bias(bifurcation_bias, "bifurcation_bias")
+        self._validate_bias(bifurcation_internal_bias, "bifurcation_internal_bias")
 
         self.rng = rng
         self.origin = origin.copy()
         self.step_size = step_size
         self.initial_direction = None if initial_direction is None else initial_direction.copy()
         self.bifurcation_bias = bifurcation_bias
+        self.bifurcation_internal_bias = bifurcation_internal_bias
         self.centrifugal = bool(centrifugal)
         self.active = bool(active)
         self.internal_bifurcation = False
@@ -194,7 +197,7 @@ class RandomWalk(Neurite):
         if not ( (self.parent is None or self.parent.section_type == "soma") and len(self.points) < 2 ):
             # calculate the effect of the bias
             for weight, bias in self.elongation_biases:
-                value = bias.compute(self, direction)
+                value = bias.compute(self.rng, self, direction)
 
                 if value is None:
                     continue
@@ -320,16 +323,15 @@ class RandomWalk(Neurite):
         """Propose a standard or internal bifurcation."""
         self._check_move_allowed()
 
-        directions = self._compute_bifurcation_directions()
+        internal = event == "internal_bifurcation"
+        bias = self.bifurcation_internal_bias if internal else self.bifurcation_bias
+        name = "bifurcation_internal_bias" if internal else "bifurcation_bias"
+        directions = self._compute_bifurcation_directions(bias, name)
 
-        if event == "internal_bifurcation":
+        if internal:
             children = [
-                self._create_child(self.last_direction, active=True),
-                self._create_child(
-                    directions[1],
-                    active=True,
-                    internal=True,
-                ),
+                self._create_child(directions[0], active=True),
+                self._create_child(directions[1], active=True, internal=True),
             ]
         else:
             children = [
@@ -366,6 +368,7 @@ class RandomWalk(Neurite):
             initial_direction=initial_direction,
             elongation_bias=config["elongation_bias"],
             bifurcation_bias=config["bifurcation_bias"],
+            bifurcation_internal_bias=self.bifurcation_internal_bias,
             internal_branch=self.internal_branch,
             centrifugal=self.centrifugal,
             parent=self,
@@ -378,16 +381,16 @@ class RandomWalk(Neurite):
             elongation_bias_weight=config["elongation_bias_weight"],
         )
 
-    def _compute_bifurcation_directions(self):
-        """Return two unit initial directions."""
-        if self.bifurcation_bias is None:
+    def _compute_bifurcation_directions(self, bias, name):
+        """Return two unit initial directions from a bifurcation bias."""
+        if bias is None:
             return np.asarray([
                 self._sample_direction(self.last_direction),
                 self._sample_direction(self.last_direction),
             ])
 
-        directions = self.bifurcation_bias.compute(self)
-
+        directions = bias.compute(self.rng, self)
+            
         if directions is None:
             return np.asarray([
                 self._sample_direction(self.last_direction),
@@ -397,10 +400,10 @@ class RandomWalk(Neurite):
         directions = np.asarray(directions, dtype=float)
 
         if directions.shape != (2, 3):
-            raise ValueError("bifurcation_bias.compute() must return None or an array with shape (2, 3).")
+            raise ValueError(f"{name}.compute() must return None or an array with shape (2, 3).")
 
         if not np.all(np.isfinite(directions)):
-            raise ValueError("bifurcation_bias.compute() must return only finite values.")
+            raise ValueError(f"{name}.compute() must return only finite values.")
 
         return np.asarray([misc._normalize(directions[0]), misc._normalize(directions[1])])
 

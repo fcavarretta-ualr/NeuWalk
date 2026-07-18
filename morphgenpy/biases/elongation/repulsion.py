@@ -1,6 +1,7 @@
 import numpy as np
 from ..bias import BiasRegistry
 from ... import misc
+from . import _projection
 
 def _dendrite_repulsion(reference_dendrite, point, dendrites, K, n):
     directions, distances, lengths = [], [], []
@@ -44,7 +45,7 @@ def _dendrite_repulsion(reference_dendrite, point, dendrites, K, n):
 
     return np.sum(directions.T * factors, axis=1)
 
-def dendrite_repulsion(reference_dendrite, reference_direction, dendrites, K, n):
+def dendrite_repulsion(reference_dendrite, reference_direction, dendrites, K, n, **kwargs):
     dendrites = [ dendrite for dendrite in dendrites if len(dendrite.points) > 1 ]
     if not dendrites:
         return None
@@ -67,33 +68,34 @@ def dendrite_repulsion(reference_dendrite, reference_direction, dendrites, K, n)
     result = (result0 + result1) * 0.5
     #weight = np.linalg.norm(result)
     #result_direction = result / weight
+    result = _projection.project(reference_dendrite, result, **kwargs)    
     return result #, weight
 
 
 @BiasRegistry.register_elongation("sibling_repulsion")
-def sibling_repulsion(random_walk, reference_direction, K, n):
+def sibling_repulsion(rng, random_walk, reference_direction, K, n, **kwargs):
     sections = random_walk.siblings
-    return dendrite_repulsion(random_walk, reference_direction, sections, K, n)
+    return dendrite_repulsion(random_walk, reference_direction, sections, K, n, **kwargs)
 
 
 @BiasRegistry.register_elongation("parent_repulsion")
-def parent_repulsion(random_walk, reference_direction, K, n):
+def parent_repulsion(rng, random_walk, reference_direction, K, n, **kwargs):
     sections = [random_walk.parent] if random_walk.parent else []
-    return dendrite_repulsion(random_walk, reference_direction, sections, K, n)
+    return dendrite_repulsion(random_walk, reference_direction, sections, K, n, **kwargs)
 
 
 @BiasRegistry.register_elongation("all_dendrites_repulsion")
-def all_dendrites_repulsion(random_walk, reference_direction, K, n):
+def all_dendrites_repulsion(rng, random_walk, reference_direction, K, n, **kwargs):
     sections = [
         d for d in random_walk.wholetree
         if d is not random_walk and d.section_type != "soma"
     ]
 
-    return dendrite_repulsion(random_walk, reference_direction, sections, K, n)
+    return dendrite_repulsion(random_walk, reference_direction, sections, K, n, **kwargs)
 
 
 @BiasRegistry.register_elongation("nonrelated_repulsion")
-def nonrelated_repulsion(random_walk, reference_direction, K, n):
+def nonrelated_repulsion(rng, random_walk, reference_direction, K, n, **kwargs):
     sections = [
         d for d in random_walk.wholetree
         if d is not random_walk and d.section_type != "soma"
@@ -103,24 +105,42 @@ def nonrelated_repulsion(random_walk, reference_direction, K, n):
     siblings =  random_walk.siblings
     sections = list(set(sections) - set(parent) - set(siblings))
 
-    return dendrite_repulsion(random_walk, reference_direction, sections, K, n)
+    return dendrite_repulsion(random_walk, reference_direction, sections, K, n, **kwargs)
   
 
 
+
 @BiasRegistry.register_elongation("root_repulsion")
-def root_repulsion_bias(reference_dendrite, reference_direction, K, n):
+def root_repulsion_bias(rng, reference_dendrite, reference_direction, K, n, **kwargs):
     # get the root
-    root = reference_dendrite.root
+
+    def _get_root(dendrite):
+        while dendrite.parent:
+            if hasattr(dendrite, 'internal_bifurcation') and dendrite.internal_bifurcation:
+                break
+            dendrite = dendrite.parent
+        return dendrite
+
+    
+    root = _get_root(reference_dendrite)
     
     if (K is None) != (n is None):
         raise ValueError("K and n must both be provided or both be None.")
 
     # calculate the ghost point
-    point = reference_dendrite._generate_point(reference_direction)
-    
-    delta = point - root.points[0]
-    distance = np.linalg.norm(delta)
-    direction = delta / distance
-    factor = 1.0 if K is None else misc.hill(distance, K, n)
-    factor *= np.linalg.norm(point - reference_dendrite.current_point)
-    return direction * factor
+    ghost_point = reference_dendrite._generate_point(reference_direction)
+
+    def compute(point):
+        delta = point - root.points[0]
+        distance = np.linalg.norm(delta)
+        direction = delta / distance
+        factor = 1.0 if K is None else misc.hill(distance, K, n)
+        factor *= np.linalg.norm(point - reference_dendrite.current_point)
+        return direction * factor
+
+
+    result = (compute(reference_dendrite.points[-1]) + compute(ghost_point)) * 0.5
+
+    result = _projection.project(reference_dendrite, result, **kwargs)
+
+    return result

@@ -1,3 +1,4 @@
+import inspect
 import numpy as np
 
 from .. import misc
@@ -19,6 +20,7 @@ class MorphologySynthesizer:
         axis_direction=None,
         elongation_bias=None,
         bifurcation_bias=None,
+        bifurcation_internal_bias=None,
         centrifugal=True,
         max_angle=np.pi / 2,
         elongation_random_weight=1.0,
@@ -50,6 +52,8 @@ class MorphologySynthesizer:
             Elongation bias or weighted elongation biases.
         bifurcation_bias : BifurcationBias, optional
             Bifurcation bias passed to each RandomWalk.
+        bifurcation_internal_bias : BifurcationBias, optional
+            Bias used for internal bifurcations. Defaults to bifurcation_bias.
         centrifugal : bool, default True
             Whether RandomWalk displacement is centrifugal.
         max_angle : float, default pi / 2
@@ -87,10 +91,35 @@ class MorphologySynthesizer:
         self.axis_direction = None if axis_direction is None else axis_direction.copy()
         self.elongation_bias = elongation_bias
         self.bifurcation_bias = bifurcation_bias
+        self.bifurcation_internal_bias = bifurcation_bias if bifurcation_internal_bias is None else bifurcation_internal_bias
         self.centrifugal = bool(centrifugal)
         self.max_angle = max_angle
         self.elongation_random_weight = elongation_random_weight
         self.elongation_bias_weight = elongation_bias_weight
+        self.active_neurites = {}
+        self.soma = None
+
+    def copy_with(self, **overrides):
+        """Return a copy with optional constructor-parameter overrides."""
+        signature = inspect.signature(self.__class__.__init__)
+        parameters = {
+            name: getattr(self, name)
+            for name, parameter in signature.parameters.items()
+            if name != "self"
+            and parameter.kind not in (
+                inspect.Parameter.VAR_POSITIONAL,
+                inspect.Parameter.VAR_KEYWORD,
+            )
+        }
+        parameters.update(overrides)
+
+        copy = self.__class__(**parameters)
+        copy.soma = self.soma
+        copy.active_neurites = {
+            order: list(neurites)
+            for order, neurites in self.active_neurites.items()
+        }
+        return copy
 
     def _resolve_primary_angles(self, primary_count):
         """Resolve theta and phi independently for the primary-dendrite count."""
@@ -155,19 +184,7 @@ class MorphologySynthesizer:
         return None
 
     def synthesize(self, max_steps=None):
-        """
-        Generate the morphology from the NeuriteProfile topology.
-
-        Parameters
-        ----------
-        max_steps : int, optional
-            Maximum number of synthesis sweeps.
-
-        Returns
-        -------
-        Neurite
-            Soma containing the generated RandomWalk tree.
-        """
+        """Generate all dendrites of the current minimum order."""
         if max_steps is not None:
             if not isinstance(max_steps, int) or isinstance(max_steps, bool):
                 raise TypeError("max_steps must be an integer or None.")
@@ -175,119 +192,96 @@ class MorphologySynthesizer:
             if max_steps < 0:
                 raise ValueError("max_steps cannot be negative.")
 
-        soma = Neurite(
-            points=[self.origin.copy()],
-            section_type="soma",
-        )
+        if self.soma is None:
+            self.soma = Neurite(points=[self.origin.copy()], section_type="soma")
 
-        if self.root.section_type == "soma":
-            primary_profiles = list(self.root.children)
-        else:
-            primary_profiles = [self.root]
+            if self.root.section_type == "soma":
+                primary_profiles = list(self.root.children)
+            else:
+                primary_profiles = [self.root]
 
-        theta, phi = self._resolve_primary_angles(
-            len(primary_profiles)
-        )
+            theta, phi = self._resolve_primary_angles(len(primary_profiles))
+            primary_directions = misc.sphere_surface_points(n=len(primary_profiles), theta=theta, phi=phi)
 
-        primary_directions = misc.sphere_surface_points(
-            n=len(primary_profiles),
-            theta=theta,
-            phi=phi,
-        )
+            if self.axis_direction is not None:
+                primary_directions = np.asarray([
+                    misc.AxialFrame.to_global(direction, self.axis_direction)
+                    for direction in primary_directions
+                ])
 
-        if self.axis_direction is not None:
-            primary_directions = np.asarray([
-                misc.AxialFrame.to_global(
-                    direction,
-                    self.axis_direction,
+            for profile, initial_direction in zip(primary_profiles, primary_directions):
+                walk = RandomWalk(
+                    rng=self.rng,
+                    step_size=profile.step_size,
+                    origin=self.origin,
+                    initial_direction=initial_direction,
+                    elongation_bias=self.elongation_bias,
+                    bifurcation_bias=self.bifurcation_bias,
+                    bifurcation_internal_bias=self.bifurcation_internal_bias,
+                    centrifugal=self.centrifugal,
+                    parent=self.soma,
+                    section_type=profile.section_type,
+                    max_angle=self.max_angle,
+                    elongation_random_weight=self.elongation_random_weight,
+                    elongation_bias_weight=self.elongation_bias_weight,
                 )
-                for direction in primary_directions
-            ])
+                self.active_neurites.setdefault(profile.order, []).append((profile, walk))
 
-        primary_walks = []
+        if not self.active_neurites:
+            return self.soma
 
-        for profile, initial_direction in zip(
-            primary_profiles,
-            primary_directions,
-        ):
-            walk = RandomWalk(
-                rng=self.rng,
-                step_size=profile.step_size,
-                origin=self.origin,
-                initial_direction=initial_direction,
-                elongation_bias=self.elongation_bias,
-                bifurcation_bias=self.bifurcation_bias,
-                centrifugal=self.centrifugal,
-                parent=soma,
-                section_type=profile.section_type,
-                max_angle=self.max_angle,
-                elongation_random_weight=self.elongation_random_weight,
-                elongation_bias_weight=self.elongation_bias_weight,
-            )
+        current_order = min(self.active_neurites)
 
-            primary_walks.append(walk)
-
-        for r in soma.children:
-            print(r)
-
-        active_neurites = {}
-
-        for profile, walk in zip(primary_profiles, primary_walks):
-            active_neurites.setdefault(profile.order, []).append((profile, walk))
+        for _, walk in self.active_neurites[current_order]:
+            walk.active = True
 
         step = 0
 
-        while active_neurites:
-            current_order = min(active_neurites)
+        while self.active_neurites[current_order]:
+            if max_steps is not None and step >= max_steps:
+                return self.soma
 
-            for _, walk in active_neurites[current_order]:
-                walk.active = True
-                
-            while active_neurites[current_order]:
-                if max_steps is not None and step >= max_steps:
-                    return soma
+            current_neurites = self.active_neurites[current_order]
+            self.active_neurites[current_order] = []
 
-                current_neurites = active_neurites[current_order]
-                active_neurites[current_order] = []
+            for neurite in current_neurites:
+                profile, walk = neurite
 
-                for neurite in current_neurites:
-                    profile, walk = neurite
+                if not walk.active:
+                    continue
 
-                    if not walk.active:
-                        continue
+                event = self.next_event(neurite)
 
-                    event = self.next_event(neurite)
+                if event == "elongate":
+                    walk.elongate()
+                    self.active_neurites[current_order].append(neurite)
 
-                    if event == "elongate":
-                        walk.elongate()
-                        active_neurites[current_order].append(neurite)
+                elif event == "bifurcate":
+                    children = walk.bifurcate()
 
-                    elif event == "bifurcate":
-                        children = walk.bifurcate()
+                    for child_profile, child_walk in zip(profile.children, children):
+                        self.active_neurites.setdefault(child_profile.order, []).append((child_profile, child_walk))
 
-                        for child_profile, child_walk in zip(profile.children, children):
-                            active_neurites[child_profile.order].append((child_profile, child_walk))
+                elif event == "bifurcate_internal":
+                    children = walk.bifurcate_internal()
 
-                    elif event == "bifurcate_internal":
-                        children = walk.bifurcate_internal()
-                        for child_profile, child_walk in zip(profile.children, children):
-                            active_neurites.setdefault(child_profile.order, list()).append((child_profile, child_walk))
+                    for child_profile, child_walk in zip(profile.children, children):
+                        self.active_neurites.setdefault(child_profile.order, []).append((child_profile, child_walk))
 
-                    elif event == "annihilate":
-                        walk.annihilate()
+                elif event == "annihilate":
+                    walk.annihilate()
 
-                    elif event is not None:
-                        raise RuntimeError(f"Unknown synthesis event: {event!r}.")
+                elif event is not None:
+                    raise RuntimeError(f"Unknown synthesis event: {event!r}.")
 
-                for _, walk in current_neurites:
-                    if walk.pending_event:
-                        walk.update_state()
+            for _, walk in current_neurites:
+                if walk.pending_event:
+                    walk.update_state()
 
-                step += 1
+            step += 1
 
-            del active_neurites[current_order]
-
-        return soma
+        del self.active_neurites[current_order]
+        return self.soma
 
     def describe(self):
         """Print synthesized and experimental topology statistics."""

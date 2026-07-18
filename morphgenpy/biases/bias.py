@@ -14,15 +14,15 @@ class ElongationBias:
         self._compute = compute
         self._terms = terms
 
-    def compute(self, random_walk, reference_direction):
+    def compute(self, rng, random_walk, reference_direction):
         """Compute the elongation bias vector."""
         if self._terms is None:
-            return self._compute(random_walk, reference_direction)
+            return self._compute(rng, random_walk, reference_direction)
 
         values = []
 
         for weight, bias in self._terms:
-            value = bias.compute(random_walk, reference_direction)
+            value = bias.compute(rng, random_walk, reference_direction)
 
             if value is not None:
                 values.append(weight * np.asarray(value, dtype=float))
@@ -52,29 +52,29 @@ class ElongationBias:
 
     __rmul__ = __mul__
 
-class SequentialElongationBias:
-    """Apply elongation biases sequentially."""
-
-    def __init__(self, biases=None):
-        self._biases = list(biases or [])
-
-    def append(self, bias, weight=1.0):
-        self._biases.append((float(weight), bias))
-        return self
-
-    def compute(self, random_walk, reference_direction):
-        direction = np.asarray(reference_direction, dtype=float)
-
-        for assigned_weight, bias in self._biases:
-            bias_direction = bias.compute(random_walk, direction)
-
-            if bias_direction is None:
-                continue
-
-            #direction = misc._normalize(direction * random_walk._step_size(direction) + bias_direction * assigned_weight)
-            direction = misc._normalize(direction * random_walk._step_size(direction) + bias_direction * assigned_weight)
-
-        return direction
+##class SequentialElongationBias:
+##    """Apply elongation biases sequentially."""
+##
+##    def __init__(self, biases=None):
+##        self._biases = list(biases or [])
+##
+##    def append(self, bias, weight=1.0):
+##        self._biases.append((float(weight), bias))
+##        return self
+##
+##    def compute(self, random_walk, reference_direction):
+##        direction = np.asarray(reference_direction, dtype=float)
+##
+##        for assigned_weight, bias in self._biases:
+##            bias_direction = bias.compute(random_walk, direction)
+##
+##            if bias_direction is None:
+##                continue
+##
+##            #direction = misc._normalize(direction * random_walk._step_size(direction) + bias_direction * assigned_weight)
+##            direction = misc._normalize(direction * random_walk._step_size(direction) + bias_direction * assigned_weight)
+##
+##        return direction
 
 class BifurcationBias:
     """Simple bifurcation bias wrapper."""
@@ -85,9 +85,9 @@ class BifurcationBias:
 
         self._compute = compute
 
-    def compute(self, neurite):
+    def compute(self, rng, neurite):
         """Compute the bifurcation directions for a neurite."""
-        return self._compute(neurite)
+        return self._compute(rng, neurite)
 
 
 class BiasRegistry:
@@ -144,8 +144,9 @@ class BiasRegistry:
                 f"Unknown elongation bias: {identifier!r}."
             ) from None
 
-        def compute(random_walk, reference_direction):
+        def compute(rng, random_walk, reference_direction):
             return function(
+                rng,
                 random_walk,
                 reference_direction,
                 *args,
@@ -166,8 +167,8 @@ class BiasRegistry:
                 f"Unknown bifurcation bias: {identifier!r}."
             ) from None
 
-        def compute(neurite):
-            return function(neurite, *args, **kwargs)
+        def compute(rng, neurite):
+            return function(rng, neurite, *args, **kwargs)
 
         return BifurcationBias(compute)
 

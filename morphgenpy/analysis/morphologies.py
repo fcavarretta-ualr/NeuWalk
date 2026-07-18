@@ -6,182 +6,246 @@ from .. import misc
 from ..io import read_swc
 
 
-def _normalize_section_types(section_types):
-    if section_types is None:
-        return set()
-
-    return {section_types} if isinstance(section_types, str) else set(section_types)
-
-
-def _align_children(section):
-    """Translate each child so that it begins at its parent's endpoint."""
-    for child in section.children:
-        child.points = misc.translate_points(
-            child.points,
-            source=child.points[0],
-            target=section.points[-1],
-        )
-        _align_children(child)
-
-
-def _preprocess_geometry(root):
-    """Center each root and connect every child geometrically to its parent."""
-    if root.section_type == "soma":
-        root.points = [np.zeros(3, dtype=float)]
-    elif len(root.points):
-        root.points = misc.translate_points(
-            root.points,
-            source=root.points[0],
-        )
-
-    _align_children(root)
-
-
-def _remove_consecutive_duplicate_points(root):
+def repair_single_point_section(roots):
     """Remove consecutive duplicate points from every section in the tree."""
-    for section in root.wholetree:
-        if len(section.points) < 2:
-            continue
+    for r in list(roots):
+        for section in r.wholetree:
+            
+            # some is allowed to have a single point
+            if len(section.points) < 2 and section.section_type != "soma":
+                delete = True
 
-        points = [section.points[0]]
+                # the simplest solution
+                # check the number of children
+                match len(section.children):
+                    case 0:
+                        section.disconnect()
+                        delete = False
+                    case 1:
+                        if section.parent:
+                            section.children[0].connect(section.parent, relation="parent")
+                            section.disconnect()
+                            delete = False
 
-        for point in section.points[1:]:
-            if not (point == points[-1]).all():
-                points.append(point)
+                if delete:
+                    # check the last point of the parent
+                    if section.parent:
+                        # do not consider the first point
+                        for i in range(1, len(section.parent.points)):
+                            first_point = section.parent.points[-i]
+                            if (section.points[0] != first_point).any():
+                                section.points.insert(0, first_point)
+                                section.parent.points = section.parent.points[:-i+1]
+                                
+                                delete = False
+                                
+                                print(f'repair_single_point_section: added {i} point from parent'
+                                      f'\tparent={len(section.parent.points)}, section={len(section.points)}')
+                                break
+                        
+                    if section.children:
+                        # check the children points
+                        min_point_length = min(len(ch.points)-1 for ch in section.children)
+                        for i in range(min_point_length):
+                            
+                            last_point = np.mean([ch.points[i] for ch in section.children], axis=0)
+                            if (section.points[-1] != last_point).any():
+                                section.points.append(last_point)
 
-        section.points = points
+                                for ch in section.children:
+                                    ch.points = ch.points[i+1:]
+                                    ch.points.insert(0, last_point)
+                                
+                                delete = False
+                                
+                                print(f'repair_single_point_section: added {i} point from children'
+                                      f'\tchildren={[len(ch.points) for ch in section.children]}, section={len(section.points)}')
 
-def _delete_section_types(section, section_types):
-    for child in list(section.children):
-        _delete_section_types(child, section_types)
-
-        if child.section_type in section_types:
-            grandchildren = list(child.children)
-            section.disconnect(child)
-
-            for grandchild in grandchildren:
-                child.disconnect(grandchild)
-                section.connect(grandchild, relation="child")
+                                break
 
 
-def _merge_single_children(section):
-    while (
-        len(section.children) == 1
-        and section.section_type == section.children[0].section_type
-    ):
-        section._merge_with_descendant()
-
-    for child in list(section.children):
-        _merge_single_children(child)
+                if delete and len(section.children):
+                    raise Exception(f'We cannot delete a section with a single point {len(section.points)} which have children')
 
 
-def process_morphology(
-    roots,
-    delete_section_types=None,
-    merge_single_children=True,
-):
+            
+def delete_consecutive_duplicate_points(roots):
+    """Remove consecutive duplicate points from every section in the tree."""
+    for r in roots.copy():
+        for section in r.wholetree:
+            if len(section.points) < 2:
+                continue
+
+            points = [section.points[0]]
+
+            for point in section.points[1:]:
+                if (point != points[-1]).any():
+                    points.append(point)
+
+            section.points = points
+
+def delete_sections(roots, forbidden_section_types):            
+    for r in roots.copy():
+        for section in r.wholetree.copy():
+
+            # if a section is not of interested it is disconnected
+            if section.section_type in forbidden_section_types:
+                section.disconnect()
+                
+                if section in roots:
+                    roots.remove(section)
+                    
+                #print(section.section_type, "deleted")
+
+                continue
+
+            # if it does not have parent it is a root
+            if not section.parent and section not in roots:
+                roots.append(section)
+                #print(section.section_type, "without parent appended as root")
+                
+
+def translate_sections(sections):        
+    for section in sections.copy():
+        if section.parent is None:
+            target = np.zeros(3)
+        else:
+            target = section.parent.points[-1]
+            
+        section.points = misc.translate_points(section.points, section.points[0], target=target)
+        
+        translate_sections(section.children)
+
+def process_soma(roots):
+    for r in roots.copy():
+        for section in r.wholetree:
+            if section.section_type == "soma":
+                section.points = [np.zeros(3)]
+
+def merge_single_children(roots):
+    for section in roots.copy():
+        while len(section.children) == 1 and section.section_type == section.children[0].section_type:
+            # merge point
+            section.points += section.children[0].points[1:]
+
+            # copy children
+            cont_section = section.children[0]
+
+            # disconnect section
+            section.disconnect_from_children()
+
+            
+            for ch in cont_section.children.copy():
+                ch.disconnect_from_parent()
+                ch.connect(section, relation="parent")
+            
+        # visit children
+        merge_single_children(section.children)
+
+
+def merge_somata(roots):
+    first_soma = None
+    for r in roots.copy():
+        for section in r.wholetree.copy():
+            if section.section_type == "soma":
+                
+                if section.parent and section.parent.section_type != "soma":
+                    raise Exception("soma has non soma as parent")
+
+                if not first_soma:
+                    first_soma = section
+                    continue
+
+                for ch in section.children:
+                    ch.disconnect_from_parent()
+                    ch.connect(first_soma, relation="parent")
+
+                if section in roots:
+                    roots.remove(section)
+                continue
+
+    if not first_soma:
+        print('No soma was found!')
+        return
+    
+    for r in roots.copy():
+        for section in r.wholetree.copy():
+            if section.section_type != "soma" and not section.parent:
+                section.connect(first_soma, relation="parent")
+
+                if section in roots:
+                    roots.remove(section)
+                print(section.section_type, "connected to a soma")
+                
+
+def process_morphology(roots, delete_section_types=None):
     """Delete selected section types and optionally merge same-type single-child sections."""
-    roots = list(roots)
-    delete_section_types = _normalize_section_types(delete_section_types)
+    # 1. delete section type that are not of interest
+    delete_sections(roots, delete_section_types)
 
-    for root in roots:
-        _delete_section_types(root, delete_section_types)
+    # 2. check all the sections and delete duplicated consecutive points
+    delete_consecutive_duplicate_points(roots)
 
-    processed_roots = []
+    # 3. delete section with a single point
+    repair_single_point_section(roots)
 
-    for root in roots:
-        if root.section_type not in delete_section_types:
-            processed_roots.append(root)
-            continue
+    # 4. replace some with point centered on the origin
+    process_soma(roots)
 
-        children = list(root.children)
+    # 5. translate sections
+    translate_sections(roots)
 
-        for child in children:
-            root.disconnect(child)
+    # 6. merge single children
+    merge_single_children(roots)
 
-        processed_roots.extend(children)
+    # 7. merge all soma sections
+    merge_somata(roots)
+    
 
-    if merge_single_children:
-        for root in processed_roots:
-            _merge_single_children(root)
 
-    # Deleting or merging sections may reconnect descendants to new parents.
-    for root in processed_roots:
-        _align_children(root)
+def _normalize_section_types(section_types):
+    if type(section_types) == str:
+        return [section_types]
+    elif type(section_types) == list:
+        for s in section_types:
+            if type(s) != str:
+                raise TypeError("Inappropriate section type")
+    else:
+        raise TypeError("Inappropriate section type: it should be a string or a list of strings")
+        
+    return section_types
 
-    return processed_roots
-
-def _remove_single_point_sections(root):
-    """Delete one-point sections and reconnect their descendants."""
-
-    def process(section):
-        replacements = []
-
-        for child in list(section.children):
-            section.disconnect(child)
-            replacements.extend(process(child))
-
-        if len(section.points) == 1 and section.section_type != "soma":
-            return replacements
-
-        for replacement in replacements:
-            section.connect(replacement, relation="child")
-
-        return [section]
-
-    return process(root)
-
-def load_morphologies(
-    directory,
-    root_section_types=None,
-    delete_section_types="unknown",
-    merge_single_children=True,
-):
+    
+def load_morphologies(directory, root_section_types=None, delete_section_types="unknown"):
     """Load and process morphologies from all SWC files in a directory."""
+    
     files = sorted(Path(directory).glob("*.swc"))
 
     if not files:
         raise ValueError(f"No SWC files found in {directory}.")
 
-    root_section_types = (
-        _normalize_section_types(root_section_types)
-        if root_section_types is not None
-        else None
-    )
+    if root_section_types:
+        root_section_types = _normalize_section_types(root_section_types)
+        
+    if delete_section_types:
+        delete_section_types = _normalize_section_types(delete_section_types)
 
+        
     morphologies = []
 
     for filename in files:
-        roots = []
+        print(filename)
+        
+        # neuron is represented as a list of roots
+        m = read_swc(filename)
 
-        for root in read_swc(filename):
-            _preprocess_geometry(root)
-            
-            _remove_consecutive_duplicate_points(root)
+        # preprocess morphology
+        process_morphology(m, delete_section_types)
 
-            _remove_single_point_sections(root)
-            
-            candidates = (
-                root.children
-                if root.section_type == "soma"
-                else [root]
-            )
-
-            roots.extend(
-                process_morphology(
-                    candidates,
-                    delete_section_types,
-                    merge_single_children,
-                )
-            )
-
-        if root_section_types is not None:
-            roots = [
-                root
-                for root in roots
-                if root.section_type in root_section_types
-            ]
-
-        morphologies.append(roots)
+        # append morphology
+        morphologies.append({
+            'filename':filename,
+            'morphology':m
+            })
 
     return morphologies

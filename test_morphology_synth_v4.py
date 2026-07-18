@@ -91,11 +91,13 @@ def extract_neurites(morphology, section_type, expanded_filtering=False, to_dele
     
 def preprocess_morphology(morphology):
     """Split one loaded morphology into three independent cloned groups."""
+    default = ["unknown", "axon", "apical_dendrite", "apical_secondary_dendrite", "apical_secondary_oblique"]
+    
     basal_dendrites, apical_dendrites_basic, apical_dendrites_ext, apical_obliques = \
-                     extract_neurites(morphology, "basal_dendrite", expanded_filtering=True), \
-                     extract_neurites(morphology, "apical_dendrite", expanded_filtering=True), \
-                     extract_neurites(morphology, "apical_dendrite", to_delete=["apical_secondary_oblique", "apical_secondary_dendrite"]), \
-                     extract_neurites(morphology, "apical_oblique", expanded_filtering=True)
+                     extract_neurites(morphology, "basal_dendrite", to_delete=default, expanded_filtering=True), \
+                     [], \
+                     [], \
+                     []
     return basal_dendrites, apical_dendrites_basic, apical_dendrites_ext, apical_obliques
     
 
@@ -108,6 +110,10 @@ def main():
     parser.add_argument("--step-size", type=float, default=5.0)
     parser.add_argument("--max-steps", type=int, default=100)
     parser.add_argument("--seed", type=int, default=1234)
+    parser.add_argument("--cell-type", type=str, default="MITRAL")
+    parser.add_argument("--soma-theta", type=float, default=0.)
+    parser.add_argument("--soma-phi", type=float, default=0.)
+    
     args = parser.parse_args()
 
 
@@ -126,7 +132,6 @@ def main():
         apical_dendrites.append(_apical_dendrites)
         apical_dendrites_ext.append(_apical_dendrites_ext)
         apical_obliques.append(_apical_obliques)
-
 
     def chk_size(data):
       r = []
@@ -160,23 +165,21 @@ def main():
         )
 
 
-    print(stats['apical_dendrite']['sholl_plot'])
-    print(stats['apical_dendrite']['no_bifurcation_bins'])
-    print(stats['apical_dendrite']['no_annihilation_bins'])
+
     #stats['apical_dendrite']['bifurcation_internal_density'] = stats['apical_dendrite_ext']['bifurcation_internal_density']
-    bifurcation_internal_density = stats['apical_dendrite_ext']['bifurcation_internal_density']
+    
     #print('bifurcation_internal_density', stats['apical_dendrite']['bifurcation_internal_density'])
-    del stats['apical_dendrite_ext']
+
     
     profiles = {}
     for section_type, params in stats.items():
-        if section_type in ['basal_dendrite','oblique_dendrite']:
+        if section_type != 'basal_dendrite':
           continue
         print('generating profile for ', section_type)
 
         del params['total_length']
         params['internal_event_sampler_parameters'] = None
-          
+
         # set oblique parameters
 ##        oblique_present = section_type == "apical_dendrite" and "apical_oblique" in stats
 ####        if oblique_present:
@@ -197,7 +200,7 @@ def main():
         )
 
         topol_synthesizer.synthesize_progressive(
-            n_std=0.5,
+            n_std=1,
             max_attempts_per_window=5,
             max_total_attempts=1000,
             verbose=False,
@@ -252,64 +255,85 @@ def main():
 ##        iroot += 1
         
         
-    b1 = biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 0.]), (170., 0., 0.), (2.5, 2.5), (2.5, 2.5), 0.5, 1, strict=True)
-    b2 = biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 170.]), (310., 0., 0.), (2.5, 2.5), (50.0, 50.0), 0.5, 1, strict=True)
-    b3 = biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 480.]), (260., 0., 0.), (50.0, 50.0), (100.0, 100.0), 0.5, 1, strict=True)
-    b4 = biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 740.]), (260., 0., 0.), (100.0, 100.0), (150.0, 150.0), 0.5, 1, strict=True)
-    b = b1 + b2 + b3 + b4
-
-    elongation_bias = []
-    elongation_bias.append((0.003, biases.get_elongation("sibling_repulsion", 25.0, -2)))
-    elongation_bias.append((0.003
-                            , biases.get_elongation("nonrelated_repulsion", 25.0, -2)))
-    elongation_bias.append((0.075, b))
-    elongation_bias.append((0.075, biases.get_elongation("plane_boundary", np.array([0., 0., 1000.]), (np.pi, 0.), 250, -2)))
-    elongation_random_weight = 0.2
-    bifurcation_bias = biases.get_bifurcation("radial_torsion", np.pi / 6)
-    bifurcation_internal_bias = biases.get_bifurcation("internal_branch", np.pi / 3)
-    
-    morph_synthesizer = MorphologySynthesizer(
-        root=profiles['apical_dendrite'],
-        rng=rng,
-        theta=0,
-        phi=0,
-        axis_direction=np.array([0.0, 0.0, 1.0]),
-        bifurcation_bias=bifurcation_bias,
-        bifurcation_internal_bias=bifurcation_internal_bias,
-        elongation_bias=elongation_bias,
-        elongation_random_weight=elongation_random_weight,
-        elongation_bias_weight=1
-    )
-    soma_apical = morph_synthesizer.synthesize()
-    print("bifurcation_count (Sim):", soma_apical.bifurcation_count)
-    print("sholl_plot:", soma_apical.sholl_plot(args.bin_size))
-    
+##    b1 = biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 0.]), (170., 0., 0.), (2.5, 2.5), (2.5, 2.5), 0.5, 1, strict=True)
+##    b2 = biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 170.]), (310., 0., 0.), (2.5, 2.5), (50.0, 50.0), 0.5, 1, strict=True)
+##    b3 = biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 480.]), (260., 0., 0.), (50.0, 50.0), (100.0, 100.0), 0.5, 1, strict=True)
+##    b4 = biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 740.]), (260., 0., 0.), (100.0, 100.0), (150.0, 150.0), 0.5, 1, strict=True)
+##    b = b1 + b2 + b3 + b4
+##
 ##    elongation_bias = []
-##    elongation_bias.append((0.001, biases.get_elongation("sibling_repulsion", 25.0, -2)))
-##    elongation_bias.append((0.001, biases.get_elongation("nonrelated_repulsion", 10.0, -2)))
-##    elongation_bias.append((0.001, biases.get_elongation("root_repulsion", None, None)))
-##    oblique_synthesizer = morph_synthesizer.copy_with(elongation_bias=elongation_bias)
-##    #soma_apical = morph_synthesizer.synthesize()
-##
-##
-##    elongation_bias = list()
-##    elongation_bias.append((0.001, biases.get_elongation("sibling_repulsion", 25.0, -2)))
-##    elongation_bias.append((0.001, biases.get_elongation("nonrelated_repulsion", 10.0, -2)))
-##    elongation_bias.append((0.001, biases.get_elongation("root_repulsion", None, None)))
-##
+##    elongation_bias.append((0.003, biases.get_elongation("sibling_repulsion", 25.0, -2)))
+##    elongation_bias.append((0.003
+##                            , biases.get_elongation("nonrelated_repulsion", 25.0, -2)))
+##    elongation_bias.append((0.075, b))
+##    elongation_bias.append((0.075, biases.get_elongation("plane_boundary", np.array([0., 0., 1000.]), (np.pi, 0.), 250, -2)))
+    elongation_random_weight = 0.2
 ##    bifurcation_bias = biases.get_bifurcation("radial_torsion", np.pi / 6)
+##    bifurcation_internal_bias = biases.get_bifurcation("internal_branch", np.pi / 3)
 ##    
 ##    morph_synthesizer = MorphologySynthesizer(
 ##        root=profiles['basal_dendrite'],
 ##        rng=rng,
-##        theta=(np.pi / 6, np.pi * 5 / 6),
-##        phi=(0, 2 * np.pi),
-##        axis_direction=np.array([0.0, 0.0, -1.0]),
+##        theta=0,
+##        phi=0,
+##        axis_direction=np.array([0.0, 0.0, 1.0]),
 ##        bifurcation_bias=bifurcation_bias,
+##        bifurcation_internal_bias=bifurcation_internal_bias,
 ##        elongation_bias=elongation_bias,
-##        elongation_random_weight=elongation_random_weight
+##        elongation_random_weight=elongation_random_weight,
+##        elongation_bias_weight=1
 ##    )
-##    #soma_basal = morph_synthesizer.synthesize()
+##    soma_apical = morph_synthesizer.synthesize()
+##    print("bifurcation_count (Sim):", soma_apical.bifurcation_count)
+##    print("sholl_plot:", soma_apical.sholl_plot(args.bin_size))
+    
+    ##elongation_bias = []
+    #elongation_bias.append((0.001, biases.get_elongation("sibling_repulsion", 25.0, -2)))
+    #elongation_bias.append((0.001, biases.get_elongation("nonrelated_repulsion", 10.0, -2)))
+    #elongation_bias.append((0.001, biases.get_elongation("root_repulsion", None, None)))
+    #oblique_synthesizer = morph_synthesizer.copy_with(elongation_bias=elongation_bias)
+    #soma_apical = morph_synthesizer.synthesize()
+
+    radii = np.array([2000, 1250, 1250], dtype=float)
+    epl_depth = 300
+
+
+    if args.cell_type == "MITRAL":
+      inner_layer = radii - epl_depth
+      theta = np.pi / 6
+      b1 = biases.get_elongation("ellipsoid_boundary", radii, 150.0, -2, orientation='in')
+      b2 = biases.get_elongation("ellipsoid_boundary", inner_layer, 75., -2, orientation='out')
+    else:
+      inner_layer = radii - epl_depth / 2
+      theta = np.pi / 2
+      b1 = biases.get_elongation("ellipsoid_boundary", radii, 1.0, -2, orientation='in')
+      b2 = biases.get_elongation("ellipsoid_boundary", inner_layer, 50., -2, orientation='out')
+    b = b1 + b2
+
+    soma_position = misc.EllipsoidalCoordinates.to_cartesian((1 + 25 / 300.0, args.soma_theta, args.soma_phi), inner_layer)
+    glom_position = misc.EllipsoidalCoordinates.to_cartesian((1 + 25 / 300.0, args.soma_theta, args.soma_phi), inner_layer)
+    axis_direction = misc._normalize(misc.EllipsoidalCoordinates.to_cartesian((1, args.soma_theta, args.soma_phi), radii))
+    
+    elongation_bias = list()
+    elongation_bias.append((0.001, biases.get_elongation("sibling_repulsion", 25.0, -2, space="ellipsoid", radii=radii)))
+    elongation_bias.append((0.004, biases.get_elongation("nonrelated_repulsion", 10.0, -2, space="ellipsoid", radii=radii)))
+    elongation_bias.append((0.03, b))
+
+    bifurcation_bias = biases.get_bifurcation("cross_torsion", np.pi / 6, space="ellipsoid", radii=radii)
+    
+    morph_synthesizer = MorphologySynthesizer(
+        root=profiles['basal_dendrite'],
+        rng=rng,
+        theta=theta,
+        phi=(0, 2 * np.pi),
+        axis_direction=axis_direction,
+        origin=soma_position,
+        bifurcation_bias=bifurcation_bias,
+        elongation_bias=elongation_bias,
+        elongation_random_weight=elongation_random_weight*0,
+        centrifugal=True
+    )
+    soma_basal = morph_synthesizer.synthesize()
 ####    print("bifurcation_count (Sim):", soma_basal.bifurcation_count)
 ####    print("sholl_plot:", soma_basal.sholl_plot(args.bin_size))
 ####
@@ -317,7 +341,7 @@ def main():
 ####    for r in soma_basal.children:
 ####        r.disconnect(soma_basal)
 ####        r.connect(soma_apical, relation="parent")
-    plot_morphology(soma_apical)
+    plot_morphology(soma_basal)
 
 if __name__ == "__main__":
     main()

@@ -887,6 +887,63 @@ def random_cone_direction(
 
 
 class EllipsoidalCoordinates:
+    @staticmethod
+    def normalized_radius(point, radii, center=None):
+        """Return the normalized radius of a point relative to an ellipsoid."""
+        point = np.asarray(point, dtype=float)
+        radii = np.asarray(radii, dtype=float)
+        center = np.zeros(3, dtype=float) if center is None else np.asarray(center, dtype=float)
+
+        if point.shape != (3,):
+            raise ValueError("point must have shape (3,).")
+        if radii.shape != (3,):
+            raise ValueError("radii must have shape (3,).")
+        if center.shape != (3,):
+            raise ValueError("center must have shape (3,).")
+        if not np.all(np.isfinite(point)) or not np.all(np.isfinite(radii)) or not np.all(np.isfinite(center)):
+            raise ValueError("point, radii, and center must contain finite values.")
+        if np.any(radii <= 0.0):
+            raise ValueError("radii must be positive.")
+
+        return np.linalg.norm((point - center) / radii)
+    
+    def depth(point, radii, center=None):
+        """Return signed radial depth from the ellipsoid surface."""
+        point = np.asarray(point, dtype=float)
+        center = np.zeros(3, dtype=float) if center is None else np.asarray(center, dtype=float)
+
+        normalized_radius = EllipsoidalCoordinates.normalized_radius(point, radii, center)
+        distance_from_center = np.linalg.norm(point - center)
+
+        if np.isclose(normalized_radius, 0.0):
+            return float(np.min(radii))
+
+        return -distance_from_center * (1.0 / normalized_radius - 1.0)
+
+    @staticmethod
+    def normal_direction(point, radii, center=None):
+        """Return the outward unit normal to an ellipsoid at a given point."""
+        point = np.asarray(point, dtype=float)
+        radii = np.asarray(radii, dtype=float)
+        center = np.zeros(3, dtype=float) if center is None else np.asarray(center, dtype=float)
+
+        if point.shape != (3,):
+            raise ValueError("point must have shape (3,).")
+        if radii.shape != (3,):
+            raise ValueError("radii must have shape (3,).")
+        if center.shape != (3,):
+            raise ValueError("center must have shape (3,).")
+        if not np.all(np.isfinite(point)) or not np.all(np.isfinite(radii)) or not np.all(np.isfinite(center)):
+            raise ValueError("point, radii, and center must contain finite values.")
+        if np.any(radii <= 0.0):
+            raise ValueError("radii must be positive.")
+
+        normal_direction = (point - center) / radii**2
+
+        if np.isclose(np.linalg.norm(normal_direction), 0.0):
+            raise ValueError("The ellipsoid normal is undefined at the center.")
+
+        return _normalize(normal_direction)
 
     @staticmethod
     def _prepare_radii(radii, dimension):

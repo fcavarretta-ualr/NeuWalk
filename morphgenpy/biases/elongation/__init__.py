@@ -9,3 +9,8 @@ from .repulsion import (
 from .truncated_cone import (
     truncated_cone_boundary_bias,
 )
+
+from .plane import (
+    plane_boundary_bias,
+)
+

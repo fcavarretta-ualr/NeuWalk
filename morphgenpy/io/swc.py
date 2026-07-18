@@ -156,154 +156,77 @@ def read_swc(filename):
     ]
 
 
-def write_swc(
-    filename,
-    neurite,
-    default_radius=1.0,
-):
-    """
-    Write a Neurite tree to an SWC file.
+def write_swc(filename, roots, default_radius=1.0):
+    """Write a list of root section trees to an SWC file."""
+    if not isinstance(roots, (list, tuple)):
+        raise TypeError("roots must be a list or tuple.")
+    if not roots:
+        raise ValueError("roots cannot be empty.")
 
-    String ``section_type`` labels are converted to SWC integer codes
-    according to ``TYPE_CODES``.
-
-    Parameters
-    ----------
-    filename : str or path-like
-        Output SWC filename.
-    neurite : Neurite
-        Any section belonging to the tree.
-    default_radius : float, default 1.0
-        Radius used when a section has no ``radii`` attribute.
-    """
-    if not isinstance(neurite, Neurite):
-        raise TypeError(
-            "neurite must be a Neurite object."
-        )
-
-    if default_radius <= 0:
-        raise ValueError(
-            "default_radius must be positive."
-        )
+    default_radius = float(default_radius)
+    if not np.isfinite(default_radius) or default_radius <= 0.0:
+        raise ValueError("default_radius must be finite and positive.")
 
     rows = []
     next_id = 1
     endpoint_ids = {}
+    visited = set()
 
     def add_section(section):
         nonlocal next_id
+        section_key = id(section)
+        if section_key in visited:
+            raise ValueError("A section is referenced more than once.")
+        visited.add(section_key)
 
-        if len(section.points) == 0:
-            raise ValueError(
-                "Cannot write a neurite with no points."
-            )
+        points = np.asarray(section.points, dtype=float)
+        if points.ndim != 2 or points.shape[1] != 3:
+            raise ValueError("section.points must have shape (n, 3).")
+        if len(points) == 0:
+            raise ValueError("Cannot write a section with no points.")
+        if not np.all(np.isfinite(points)):
+            raise ValueError("section.points must contain finite values.")
 
-        section_type = section.section_type
-
-        if section_type is None:
-            section_type = "unknown"
-
+        section_type = "unknown" if section.section_type is None else section.section_type
         if section_type not in TYPE_CODES:
-            raise ValueError(
-                f"Unsupported section_type: "
-                f"{section_type!r}. "
-                f"Expected one of {tuple(TYPE_CODES)}."
-            )
-
+            raise ValueError(f"Unsupported section_type: {section_type!r}.")
         section_code = TYPE_CODES[section_type]
-        radii = getattr(section, "radii", None)
-
-        if radii is None:
-            radii = np.full(
-                len(section.points),
-                default_radius,
-                dtype=float,
-            )
-
-        else:
-            radii = np.asarray(
-                radii,
-                dtype=float,
-            )
-
-            if radii.shape != (
-                len(section.points),
-            ):
-                raise ValueError(
-                    "radii must have one value for each "
-                    "section point."
-                )
-
-            if np.any(radii <= 0):
-                raise ValueError(
-                    "All radii must be positive."
-                )
 
         start = 0
         parent_id = -1
-
         if section.parent is not None:
-            parent_id = endpoint_ids[
-                id(section.parent)
-            ]
-
-            if np.allclose(
-                section.points[0],
-                section.parent.points[-1],
-            ):
+            parent_key = id(section.parent)
+            if parent_key not in endpoint_ids:
+                raise ValueError("The parent section must be written before its child.")
+            parent_id = endpoint_ids[parent_key]
+            parent_endpoint = np.asarray(section.parent.points[-1], dtype=float)
+            if np.allclose(points[0], parent_endpoint):
                 start = 1
 
         previous_id = parent_id
-
-        for i in range(
-            start,
-            len(section.points),
-        ):
+        for point in points[start:]:
             node_id = next_id
             next_id += 1
-
-            x, y, z = section.points[i]
-
-            rows.append(
-                (
-                    node_id,
-                    section_code,
-                    x,
-                    y,
-                    z,
-                    radii[i],
-                    previous_id,
-                )
-            )
-
+            x, y, z = point
+            rows.append((node_id, section_code, x, y, z, default_radius, previous_id))
             previous_id = node_id
 
-        endpoint_ids[id(section)] = (
-            parent_id
-            if start == len(section.points)
-            else previous_id
-        )
+        endpoint_ids[section_key] = parent_id if start == len(points) else previous_id
 
         for child in section.children:
+            if child.parent is not section:
+                raise ValueError("Each child.parent must reference its parent section.")
             add_section(child)
 
-    add_section(neurite.root)
+    for root in roots:
+        if root.parent is not None:
+            raise ValueError("Each root section must have parent=None.")
+        add_section(root)
 
-    with open(
-        filename,
-        "w",
-        encoding="utf-8",
-    ) as file:
-        file.write(
-            "# id type x y z radius parent\n"
-        )
-
+    with open(filename, "w", encoding="utf-8") as file:
+        file.write("# id type x y z radius parent\n")
         for row in rows:
             file.write(
-                f"{row[0]} {row[1]} "
-                f"{row[2]:.9g} "
-                f"{row[3]:.9g} "
-                f"{row[4]:.9g} "
-                f"{row[5]:.9g} "
-                f"{row[6]}\n"
+                f"{row[0]} {row[1]} {row[2]:.9g} {row[3]:.9g} "
+                f"{row[4]:.9g} {row[5]:.9g} {row[6]}\n"
             )
