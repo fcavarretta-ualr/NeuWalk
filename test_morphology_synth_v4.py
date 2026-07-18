@@ -94,7 +94,7 @@ def preprocess_morphology(morphology):
     default = ["unknown", "axon", "apical_dendrite", "apical_secondary_dendrite", "apical_secondary_oblique"]
     
     basal_dendrites, apical_dendrites_basic, apical_dendrites_ext, apical_obliques = \
-                     extract_neurites(morphology, "basal_dendrite", to_delete=default, expanded_filtering=True), \
+                     extract_neurites(morphology['morphology'], "basal_dendrite", to_delete=default, expanded_filtering=True), \
                      [], \
                      [], \
                      []

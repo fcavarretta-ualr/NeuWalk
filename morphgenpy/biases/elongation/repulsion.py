@@ -68,6 +68,7 @@ def dendrite_repulsion(reference_dendrite, reference_direction, dendrites, K, n,
     result = (result0 + result1) * 0.5
     #weight = np.linalg.norm(result)
     #result_direction = result / weight
+
     result = _projection.project(reference_dendrite, result, **kwargs)    
     return result #, weight
 

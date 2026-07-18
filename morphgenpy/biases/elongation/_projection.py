@@ -11,14 +11,12 @@ def _project(point, direction, shape, **kwargs):
         raise ValueError("center must be a 3D vector with shape (3,).")
 
     if shape == "ellipsoid":
-      normal_direction = misc.EllipsoidalCoordinates.to_cartesian(point, kwargs.get('radii'), center=center)
+      normal_direction = misc.EllipsoidalCoordinates.normal_direction(point, kwargs.get('radii'), center=center)
     elif shape == "plane":
       normal_direction = misc.EllipsoidalCoordinates.to_cartesian((1.0, theta, phi), center=center)
     else:
       raise ValueError("space must be 'ellipsoid' or 'plane'.")
     
-    
-
     e1 = misc.AxialFrame.to_global(np.array([1., 0., 0.]), normal_direction)
     e2 = misc.AxialFrame.to_global(np.array([0., 1., 0.]), normal_direction)
 
