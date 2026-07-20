@@ -89,60 +89,7 @@ class Neurite(NeuriteObject):
 
 
 
-    def _merge_with_descendant(self):
-        """
-        Merge this section with its only child of the same type.
 
-        The child's first point is assumed to coincide with this section's last
-        point and is therefore not duplicated. The child's descendants are
-        reconnected directly to this section.
-
-        Returns
-        -------
-        Neurite
-            The merged section.
-        """
-        if len(self._children) != 1:
-            raise RuntimeError(
-                "Merging requires exactly one child."
-            )
-
-        descendant = self._children[0]
-
-        if self.section_type != descendant.section_type:
-            raise RuntimeError(
-                "Sections must have the same section_type."
-            )
-
-        if len(self.points) == 0 or len(descendant.points) == 0:
-            raise RuntimeError(
-                "Both sections must contain at least one point."
-            )
-
-        if not np.allclose(
-            self.points[-1],
-            descendant.points[0],
-        ):
-            raise ValueError(
-                "The child must start at the parent endpoint."
-            )
-
-        self.points = np.vstack(
-            (
-                self.points,
-                descendant.points[1:],
-            )
-        )
-
-        grandchildren = descendant.children
-
-        self.disconnect(descendant)
-
-        for child in grandchildren:
-            descendant.disconnect(child)
-            self.connect(child, relation="child")
-
-        return self
 
     def _event_counts(self, bin_size, max_distance=None):
         """
@@ -200,6 +147,20 @@ class Neurite(NeuriteObject):
                         case 2:
                             bifurcations[i_bin] += 1
                         case _:
+                            print(neurite.depth,
+                                  neurite.section_type,
+                                  neurite.parent.section_type,
+                                  neurite.children[0].section_type,
+                                  neurite.children[1].section_type,
+                                  len(neurite.children[0].points),
+                                  len(neurite.children[1].points),
+                                  len(neurite.children[0].children),
+                                  len(neurite.children[1].children),
+                                  #neurite.children[0].children[0].section_type,
+                                  #neurite.children[0].children[1].section_type,
+                                  #neurite.children[1].children[0].section_type,
+                                  #neurite.children[1].children[1].section_type,
+                                  len(neurite.children))
                             raise ValueError("A neurite have both children of different types.")
                 case 1:
                     pass

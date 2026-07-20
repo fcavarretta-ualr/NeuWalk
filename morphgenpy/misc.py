@@ -1187,3 +1187,6 @@ class EllipsoidalCoordinates:
             ])
 
         return center + radii * normalized
+
+
+vector_normalize = _normalize

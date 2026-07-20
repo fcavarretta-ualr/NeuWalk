@@ -19,8 +19,6 @@ class RandomWalk(Neurite):
         initial_direction=None,
         elongation_bias=None,
         bifurcation_bias=None,
-        bifurcation_internal_bias=None,
-        internal_branch=None,
         centrifugal=True,
         parent=None,
         active=True,
@@ -59,21 +57,18 @@ class RandomWalk(Neurite):
         super().__init__(points=[first_point], section_type=section_type, parent=parent)
 
         if initial_direction is not None:
-            initial_direction = misc._normalize(self._validate_vector(initial_direction, "initial_direction"))
+            initial_direction = misc.vector_normalize(self._validate_vector(initial_direction, "initial_direction"))
 
         self.elongation_biases = self._prepare_elongation_biases(elongation_bias)
         self._validate_bias(bifurcation_bias, "bifurcation_bias")
-        self._validate_bias(bifurcation_internal_bias, "bifurcation_internal_bias")
 
         self.rng = rng
         self.origin = origin.copy()
         self.step_size = step_size
         self.initial_direction = None if initial_direction is None else initial_direction.copy()
         self.bifurcation_bias = bifurcation_bias
-        self.bifurcation_internal_bias = bifurcation_internal_bias
         self.centrifugal = bool(centrifugal)
         self.active = bool(active)
-        self.internal_bifurcation = False
         self.pending_event = None
 
         if not np.isscalar(max_angle):
@@ -132,7 +127,6 @@ class RandomWalk(Neurite):
 
         self.elongation_bias_weight = elongation_bias_weight
 
-        self.internal_branch = self._prepare_internal_branch(internal_branch)
 
     @property
     def first_point(self):
@@ -148,7 +142,7 @@ class RandomWalk(Neurite):
     def last_direction(self):
         """Return the latest accepted unit direction."""
         if len(self.points) >= 2:
-            return misc._normalize(self.points[-1] - self.points[-2])
+            return misc.vector_normalize(self.points[-1] - self.points[-2])
 
         return self.initial_direction.copy()
 
@@ -162,14 +156,14 @@ class RandomWalk(Neurite):
         if np.isclose(np.linalg.norm(displacement), 0.0):
             return self.initial_direction.copy()
 
-        return misc._normalize(displacement)
+        return misc.vector_normalize(displacement)
 
     def _step_size(self, direction):
         """Return the step length accounting for the centrifugal component."""
         if not self.centrifugal:
             return self.step_size
 
-        direction = misc._normalize(direction)
+        direction = misc.vector_normalize(direction)
         alignment = float(np.dot(direction, self._centrifugal_direction()))
 
         if alignment <= self._MIN_CENTRIFUGAL_ALIGNMENT:
@@ -179,7 +173,7 @@ class RandomWalk(Neurite):
 
     def _generate_point(self, direction):
         """Generate a proposed point."""
-        direction = misc._normalize(direction)
+        direction = misc.vector_normalize(direction)
         return self.current_point + self._step_size(direction) * direction
 
     def _sample_direction(self, reference_direction):
@@ -210,7 +204,7 @@ class RandomWalk(Neurite):
                 if not np.all(np.isfinite(value)):
                     raise ValueError("elongation_bias.compute() must return only finite values.")
 
-                direction = misc._normalize(
+                direction = misc.vector_normalize(
                     direction + value * weight * self.elongation_bias_weight * step_size
                 )
 
@@ -225,7 +219,7 @@ class RandomWalk(Neurite):
         )
 
         random_component = self._sample_direction(direction) * hill_value
-        direction = misc._normalize(direction + random_component * self.elongation_random_weight)
+        direction = misc.vector_normalize(direction + random_component * self.elongation_random_weight)
 
         # check for centrifugal component
         # if it is null, then correct the direction
@@ -241,11 +235,49 @@ class RandomWalk(Neurite):
 
     def bifurcate(self):
         """Propose a bifurcation into two active children."""
-        return self._propose_bifurcation(event="bifurcation")
+        self._check_move_allowed()
 
-    def bifurcate_internal(self):
-        """Propose one active and one inactive child."""
-        return self._propose_bifurcation(event="internal_bifurcation")
+        if self.bifurcation_bias:
+            initial_directions = self.bifurcation_bias.compute(self.rng, self)
+
+        else:
+            initial_direction = (
+                self._sample_direction(self.last_direction),
+                self._sample_direction(self.last_direction)
+                )
+
+    
+        children = []
+
+        for initial_direction in initial_directions:
+            children.append(
+                self.__class__(
+                    rng=self.rng,
+                    step_size=self.step_size,
+                    first_point=self.current_point,
+                    origin=self.origin,
+                    initial_direction=initial_direction,
+                    elongation_bias=self.elongation_biases,
+                    bifurcation_bias=self.bifurcation_bias,
+                    centrifugal=self.centrifugal,
+                    parent=self,
+                    active=True,
+                    section_type=self.section_type,
+                    max_angle=self.max_angle,
+                    elongation_random_weight=self.elongation_random_weight,
+                    elongation_random_hill_k=self.elongation_random_hill_k,
+                    elongation_random_hill_n=self.elongation_random_hill_n,
+                    elongation_bias_weight=self.elongation_bias_weight
+                )
+            )
+
+
+        self.pending_event = {
+            "event": "bifurcation",
+            "children": children
+            }
+        
+        return children
 
     def annihilate(self):
         """Propose annihilation."""
@@ -302,109 +334,7 @@ class RandomWalk(Neurite):
 
         self.pending_event = None
 
-    def activate_internal_branch(self):
-        """Activate the inactive internal branch."""
-        if not self.internal_bifurcation:
-            raise RuntimeError("This walk is not an internal bifurcation.")
 
-        if len(self._children) != 2:
-            raise RuntimeError("An internal bifurcation must have two children.")
-
-        branch = self._children[1]
-
-        if branch.active:
-            raise RuntimeError("The internal branch is already active.")
-
-        branch.active = True
-        return branch
-
-    def _propose_bifurcation(self, event):
-        """Propose a standard or internal bifurcation."""
-        self._check_move_allowed()
-
-        internal = event == "internal_bifurcation"
-        bias = self.bifurcation_internal_bias if internal else self.bifurcation_bias
-        name = "bifurcation_internal_bias" if internal else "bifurcation_bias"
-        directions = self._compute_bifurcation_directions(bias, name)
-
-        if internal:
-            children = [
-                self._create_child(directions[0], active=True),
-                self._create_child(directions[1], active=True, internal=True),
-            ]
-        else:
-            children = [
-                self._create_child(direction, active=True)
-                for direction in directions
-            ]
-
-        pending_event = {"event": event, "children": children, "directions": directions}
-
-        if event == "internal_bifurcation":
-            pending_event["points"] = [
-                child._generate_point(direction)
-                for child, direction in zip(children, directions)
-            ]
-
-        self.pending_event = pending_event
-        return tuple(children)
-
-    def _create_child(self, initial_direction, active, internal=False):
-        """Create a pending child random walk."""
-        config = self.internal_branch if internal else {
-            "elongation_bias": self.elongation_biases,
-            "bifurcation_bias": self.bifurcation_bias,
-            "max_angle": self.max_angle,
-            "elongation_random_weight": self.elongation_random_weight,
-            "elongation_bias_weight": self.elongation_bias_weight,
-        }
-
-        return self.__class__(
-            rng=self.rng,
-            step_size=self.step_size,
-            first_point=self.current_point,
-            origin=self.origin,
-            initial_direction=initial_direction,
-            elongation_bias=config["elongation_bias"],
-            bifurcation_bias=config["bifurcation_bias"],
-            bifurcation_internal_bias=self.bifurcation_internal_bias,
-            internal_branch=self.internal_branch,
-            centrifugal=self.centrifugal,
-            parent=self,
-            active=active,
-            section_type=self.section_type,
-            max_angle=config["max_angle"],
-            elongation_random_weight=config["elongation_random_weight"],
-            elongation_random_hill_k=self.elongation_random_hill_k,
-            elongation_random_hill_n=self.elongation_random_hill_n,
-            elongation_bias_weight=config["elongation_bias_weight"],
-        )
-
-    def _compute_bifurcation_directions(self, bias, name):
-        """Return two unit initial directions from a bifurcation bias."""
-        if bias is None:
-            return np.asarray([
-                self._sample_direction(self.last_direction),
-                self._sample_direction(self.last_direction),
-            ])
-
-        directions = bias.compute(self.rng, self)
-            
-        if directions is None:
-            return np.asarray([
-                self._sample_direction(self.last_direction),
-                self._sample_direction(self.last_direction),
-            ])
-
-        directions = np.asarray(directions, dtype=float)
-
-        if directions.shape != (2, 3):
-            raise ValueError(f"{name}.compute() must return None or an array with shape (2, 3).")
-
-        if not np.all(np.isfinite(directions)):
-            raise ValueError(f"{name}.compute() must return only finite values.")
-
-        return np.asarray([misc._normalize(directions[0]), misc._normalize(directions[1])])
 
     def _check_move_allowed(self):
         """Check whether a move can be proposed."""
@@ -417,81 +347,6 @@ class RandomWalk(Neurite):
         if self.pending_event is not None:
             raise RuntimeError(f"A {self.pending_event['event']!r} move is already pending.")
 
-    def _iter_walks(self):
-        """Iterate over this walk and its descendants."""
-        yield self
-
-        for child in self._children:
-            yield from child._iter_walks()
-
-    def _prepare_internal_branch(self, internal_branch):
-        """Validate and complete the internal-branch configuration."""
-        if internal_branch is None:
-            internal_branch = {}
-        elif not isinstance(internal_branch, dict):
-            raise TypeError("internal_branch must be a dictionary or None.")
-        else:
-            internal_branch = dict(internal_branch)
-
-        allowed = {
-            "elongation_bias",
-            "bifurcation_bias",
-            "max_angle",
-            "elongation_random_weight",
-            "elongation_bias_weight",
-        }
-        unknown = set(internal_branch) - allowed
-
-        if unknown:
-            raise ValueError(f"Unknown internal_branch parameters: {sorted(unknown)}")
-
-        elongation_bias = self._prepare_elongation_biases(
-            internal_branch.get("elongation_bias", self.elongation_biases)
-        )
-        bifurcation_bias = internal_branch.get("bifurcation_bias", self.bifurcation_bias)
-        self._validate_bias(bifurcation_bias, "internal_branch['bifurcation_bias']")
-
-        max_angle = internal_branch.get("max_angle", self.max_angle)
-
-        if not np.isscalar(max_angle):
-            raise TypeError("internal_branch['max_angle'] must be a scalar.")
-
-        max_angle = float(max_angle)
-
-        if not np.isfinite(max_angle) or not 0.0 <= max_angle <= np.pi:
-            raise ValueError("internal_branch['max_angle'] must be finite and lie within [0, pi].")
-
-        elongation_random_weight = internal_branch.get(
-            "elongation_random_weight", self.elongation_random_weight
-        )
-
-        if not np.isscalar(elongation_random_weight):
-            raise TypeError("internal_branch['elongation_random_weight'] must be a scalar.")
-
-        elongation_random_weight = float(elongation_random_weight)
-
-        if not np.isfinite(elongation_random_weight) or elongation_random_weight < 0.0:
-            raise ValueError("internal_branch['elongation_random_weight'] must be finite and non-negative.")
-
-        elongation_bias_weight = internal_branch.get(
-            "elongation_bias_weight", self.elongation_bias_weight
-        )
-
-        if not np.isscalar(elongation_bias_weight):
-            raise TypeError("internal_branch['elongation_bias_weight'] must be a scalar.")
-
-        elongation_bias_weight = float(elongation_bias_weight)
-
-        if not np.isfinite(elongation_bias_weight) or elongation_bias_weight < 0.0:
-            raise ValueError("internal_branch['elongation_bias_weight'] must be finite and non-negative.")
-
-        return {
-            "elongation_bias": elongation_bias,
-            "bifurcation_bias": bifurcation_bias,
-            "max_angle": max_angle,
-            "elongation_random_weight": elongation_random_weight,
-            "elongation_bias_weight": elongation_bias_weight,
-        }
 
     @staticmethod
     def _prepare_elongation_biases(biases):

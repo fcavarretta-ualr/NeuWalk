@@ -20,7 +20,6 @@ class MorphologySynthesizer:
         axis_direction=None,
         elongation_bias=None,
         bifurcation_bias=None,
-        bifurcation_internal_bias=None,
         centrifugal=True,
         max_angle=np.pi / 2,
         elongation_random_weight=1.0,
@@ -52,8 +51,6 @@ class MorphologySynthesizer:
             Elongation bias or weighted elongation biases.
         bifurcation_bias : BifurcationBias, optional
             Bifurcation bias passed to each RandomWalk.
-        bifurcation_internal_bias : BifurcationBias, optional
-            Bias used for internal bifurcations. Defaults to bifurcation_bias.
         centrifugal : bool, default True
             Whether RandomWalk displacement is centrifugal.
         max_angle : float, default pi / 2
@@ -91,7 +88,6 @@ class MorphologySynthesizer:
         self.axis_direction = None if axis_direction is None else axis_direction.copy()
         self.elongation_bias = elongation_bias
         self.bifurcation_bias = bifurcation_bias
-        self.bifurcation_internal_bias = bifurcation_bias if bifurcation_internal_bias is None else bifurcation_internal_bias
         self.centrifugal = bool(centrifugal)
         self.max_angle = max_angle
         self.elongation_random_weight = elongation_random_weight
@@ -173,8 +169,6 @@ class MorphologySynthesizer:
                     "A bifurcation must have exactly two children."
                 )
 
-##            if profile.children[1].internal_bifurcation:
-##                return "bifurcate_internal"
 
             return "bifurcate"
 
@@ -217,7 +211,6 @@ class MorphologySynthesizer:
                     initial_direction=initial_direction,
                     elongation_bias=self.elongation_bias,
                     bifurcation_bias=self.bifurcation_bias,
-                    bifurcation_internal_bias=self.bifurcation_internal_bias,
                     centrifugal=self.centrifugal,
                     parent=self.soma,
                     section_type=profile.section_type,
@@ -258,12 +251,6 @@ class MorphologySynthesizer:
 
                 elif event == "bifurcate":
                     children = walk.bifurcate()
-
-                    for child_profile, child_walk in zip(profile.children, children):
-                        self.active_neurites.setdefault(child_profile.order, []).append((child_profile, child_walk))
-
-                elif event == "bifurcate_internal":
-                    children = walk.bifurcate_internal()
 
                     for child_profile, child_walk in zip(profile.children, children):
                         self.active_neurites.setdefault(child_profile.order, []).append((child_profile, child_walk))

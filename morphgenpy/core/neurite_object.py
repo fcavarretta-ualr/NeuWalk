@@ -122,9 +122,15 @@ class NeuriteObject:
         """
         # if no neurite is specified, disconnect from both parent and children
         if neurite is None:
-            self.disconnect_from_parent()
-            self.disconnect_from_children()
+            
+            if self.parent:
+                self.disconnect_from_parent()
+                
+            if self.children:
+                self.disconnect_from_children()
+                
             return
+        
 
         # if it is a parent
         match NeuriteObject._get_relation(self, neurite):
