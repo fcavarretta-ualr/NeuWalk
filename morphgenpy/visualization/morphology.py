@@ -43,9 +43,10 @@ def plot_morphology(
 
     all_points = []
 
-
+    print(neurite_list)
     for neurite in neurite_list:
         for section in neurite.subtree:
+
             points = np.asarray(section.points, dtype=float)
 
             if len(points) == 0:
@@ -56,14 +57,14 @@ def plot_morphology(
                 "black",
             )
 
-            if section.parent is not None and len(section.parent.points):
-                parent_endpoint = np.asarray(
-                    section.parent.points[-1],
-                    dtype=float,
-                )
-
-                if not np.allclose(parent_endpoint, points[0]):
-                    points = np.vstack((parent_endpoint, points))
+##            if section.parent is not None and len(section.parent.points):
+##                parent_endpoint = np.asarray(
+##                    section.parent.points[-1],
+##                    dtype=float,
+##                )
+##
+##                if not np.allclose(parent_endpoint, points[0]):
+##                    points = np.vstack((parent_endpoint, points))
 
             ax.plot(
                 points[:, 0],

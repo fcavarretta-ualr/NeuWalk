@@ -67,23 +67,23 @@ def extract_neurites(morphology, section_type, expanded_filtering=False, to_dele
           if section.section_type != section_type:
             section.disconnect_from_parent()
 
-  # merge with descendant if it has one child
-  for root in root_sections:
-    subtree = root.subtree
-
-    while len(subtree):
-      section = subtree.pop()
-
-      if len(section.children) == 1:
-        child = section.children[0]
-        section._merge_with_descendant()
-        if child in subtree:
-          subtree.remove(child)
+##  # merge with descendant if it has one child
+##  for root in root_sections:
+##    subtree = root.subtree
+##
+##    while len(subtree):
+##      section = subtree.pop()
+##
+##      if len(section.children) == 1:
+##        child = section.children[0]
+##        section._merge_with_descendant()
+##        if child in subtree:
+##          subtree.remove(child)
           
         
-  # translate the root to the origin
-  for root in root_sections:
-      translate_subtree(root)
+##  # translate the root to the origin
+##  for root in root_sections:
+##      translate_subtree(root)
       
   return root_sections
     

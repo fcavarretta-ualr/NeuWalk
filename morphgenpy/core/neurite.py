@@ -57,7 +57,7 @@ class Neurite(NeuriteObject):
         """
         super().__init__(section_type=section_type, parent=parent)
 
-        self._points = ValidatedList(points, validator=is_float_array)
+        self._points = ValidatedList(validator=is_float_array)
 
         if points is not None:
             self.points = points
@@ -134,7 +134,7 @@ class Neurite(NeuriteObject):
 
         # go over all neurites
         for neurite in neurites:
-            i_bin = int(np.linalg.norm(neurite.points[-1]) / bin_size)
+            i_bin = int(np.linalg.norm(neurite.points[-1] - source) / bin_size)
             match len(neurite.children):
                 case 0:
                     annihilations[i_bin] += 1
@@ -147,20 +147,6 @@ class Neurite(NeuriteObject):
                         case 2:
                             bifurcations[i_bin] += 1
                         case _:
-                            print(neurite.depth,
-                                  neurite.section_type,
-                                  neurite.parent.section_type,
-                                  neurite.children[0].section_type,
-                                  neurite.children[1].section_type,
-                                  len(neurite.children[0].points),
-                                  len(neurite.children[1].points),
-                                  len(neurite.children[0].children),
-                                  len(neurite.children[1].children),
-                                  #neurite.children[0].children[0].section_type,
-                                  #neurite.children[0].children[1].section_type,
-                                  #neurite.children[1].children[0].section_type,
-                                  #neurite.children[1].children[1].section_type,
-                                  len(neurite.children))
                             raise ValueError("A neurite have both children of different types.")
                 case 1:
                     pass

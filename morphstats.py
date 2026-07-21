@@ -153,7 +153,7 @@ def main():
     )
     parser.add_argument(
         "--section-types",
-        type=int,
+        type=str,
         nargs="+",
         default=None,
         help="Optional SWC section types to include, e.g. 3 4.",

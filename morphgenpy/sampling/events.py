@@ -74,7 +74,7 @@ class EventSampler:
         self.rng = rng
         self.step_size = float(step_size)
         self.bin_size = float(bin_size)
-        
+        print('sholl_plot=', sholl_plot)
         (
             self.bifurcation_density,
             self.annihilation_density
@@ -301,7 +301,7 @@ class EventSampler:
 
         if (
             np.isposinf(probabilities[1])
-            and np.isfinite(probabilities[[0, 2]]).all()
+            and np.isfinite(probabilities[0]).all()
         ):
             return "annihilate"
 

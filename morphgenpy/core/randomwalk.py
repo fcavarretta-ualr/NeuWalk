@@ -28,6 +28,7 @@ class RandomWalk(Neurite):
         elongation_random_hill_k=None,
         elongation_random_hill_n=None,
         elongation_bias_weight=1.0,
+        max_step_size=10
     ):
         """Initialize the random walk."""
 
@@ -126,6 +127,11 @@ class RandomWalk(Neurite):
             raise ValueError("elongation_bias_weight must be finite and non-negative.")
 
         self.elongation_bias_weight = elongation_bias_weight
+        
+        if not np.isfinite(max_step_size) or step_size <= 0.0:
+            raise ValueError("max_step_size must be finite and positive.")
+        
+        self.max_step_size = max_step_size
 
 
     @property
@@ -148,8 +154,8 @@ class RandomWalk(Neurite):
 
     def _centrifugal_direction(self):
         """Return the outward unit direction from the origin."""
-        if not self.centrifugal:
-            raise RuntimeError("The centrifugal direction is unavailable when centrifugal=False.")
+##        if not self.centrifugal:
+##            raise RuntimeError("The centrifugal direction is unavailable when centrifugal=False.")
 
         displacement = self.current_point - self.origin
 
@@ -164,12 +170,12 @@ class RandomWalk(Neurite):
             return self.step_size
 
         direction = misc.vector_normalize(direction)
-        alignment = float(np.dot(direction, self._centrifugal_direction()))
+        alignment = np.dot(direction, self._centrifugal_direction())
 
-        if alignment <= self._MIN_CENTRIFUGAL_ALIGNMENT:
-            raise ValueError("direction must have a sufficiently positive centrifugal component.")
+##        if alignment <= 0:
+##            raise ValueError("direction must have a sufficiently positive centrifugal component.")
 
-        return self.step_size / alignment
+        return min(self.step_size / alignment, self.max_step_size)
 
     def _generate_point(self, direction):
         """Generate a proposed point."""
@@ -180,6 +186,7 @@ class RandomWalk(Neurite):
         """Sample a random unit direction."""
         return misc.random_cone_direction(self.rng, reference_direction, self.max_angle)
 
+        
     def elongate(self):
         """Propose an elongation move."""
         self._check_move_allowed()
@@ -267,7 +274,8 @@ class RandomWalk(Neurite):
                     elongation_random_weight=self.elongation_random_weight,
                     elongation_random_hill_k=self.elongation_random_hill_k,
                     elongation_random_hill_n=self.elongation_random_hill_n,
-                    elongation_bias_weight=self.elongation_bias_weight
+                    elongation_bias_weight=self.elongation_bias_weight,
+                    max_step_size=self.max_step_size
                 )
             )
 

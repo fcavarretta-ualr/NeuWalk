@@ -1,269 +1,170 @@
-"""Progressive Sholl-constrained synthesis using NeuriteTreeProfile.synthesize()."""
-
 import numpy as np
 
 
-
-def synthesize_progressive(
-    tree,
-    n_std=1.0,
-    max_attempts_per_window=1,
-    max_total_attempts=1000,
-    verbose=False,
-):
+def synthesize_progressive(tree, n_std=1.0, max_attempts_per_window=10, max_total_attempts=1000, verbose=False):
     """
-    Synthesize a neurite tree using progressive Sholl-bin backtracking.
+    Synthesize a neurite tree progressively while enforcing Sholl constraints.
 
-    The existing ``tree.synthesize(max_steps=...)`` method is used to generate
-    each bin. If target bin ``i`` fails, the method retries increasingly large
-    windows:
+    The tree is generated one Sholl bin at a time. After each bin is synthesized,
+    its number of Sholl intersections is compared with the allowed interval:
 
-    ``i``;
-    ``i - 1, i``;
-    ``i - 2, i - 1, i``;
-    and so on.
+        mean - n_std * std <= intersections <= mean + n_std * std
+
+    When a bin fails validation, the function rolls the tree back and retries
+    that bin. If repeated attempts fail, the rollback window is progressively
+    expanded to include earlier bins. For example, failure at bin ``i`` causes
+    regeneration of:
+
+        i
+        i - 1 through i
+        i - 2 through i
+        ...
+
+    Each accepted bin creates a checkpoint based on ``tree.synthesis_logs``.
+    Rollback is performed through ``tree.undo_synthesize()``.
 
     Parameters
     ----------
     tree : NeuriteTreeProfile
-        Tree containing a Sholl constraint and supporting ``synthesize()`` and
-        ``undo_synthesize()``.
-    n_std : float, default 1
-        Allowed number of standard deviations from each Sholl mean.
-    max_attempts_per_window : int, default 1
-        Attempts before expanding the rollback window.
-    max_total_attempts : int, default 1000
-        Maximum total regeneration attempts.
-    verbose : bool, default False
-        Print synthesis, validation, and rollback messages.
+        Tree to synthesize. It must provide:
+
+        - ``sholl_plot_constraint["mean"]`` and ``["std"]``
+        - ``event_sampler.bin_size``
+        - ``event_sampler.step_size``
+        - ``synthesis_logs``
+        - ``synthesize(max_steps=...)``
+        - ``undo_synthesize()``
+        - ``sholl_plot(max_distance=...)``
+        - ``roots``
+
+    n_std : float, default=1.0
+        Number of standard deviations allowed above and below each target
+        Sholl mean. A bin with zero standard deviation must match its target
+        mean numerically.
+
+    max_attempts_per_window : int, default=10
+        Maximum number of regeneration attempts for a rollback window before
+        expanding the window to include one additional earlier bin.
+
+    max_total_attempts : int, default=1000
+        Maximum number of regeneration attempts across the entire synthesis.
+        The tree is restored to its initial state if this limit is reached.
+
+    verbose : bool, default=False
+        Print information about synthesis attempts, validation results,
+        accepted bins, and rollback operations.
 
     Returns
     -------
-    list of NeuriteProfile
-        Independently synthesized root profiles.
+    list
+        The independently synthesized root neurite profiles stored in
+        ``tree.roots``.
+
+    Raises
+    ------
+    ValueError
+        If the Sholl constraint is missing, malformed, or an argument is
+        outside its valid range.
+
+    TypeError
+        If the tree does not provide the required synthesis or rollback
+        methods.
+
+    RuntimeError
+        If the Sholl constraints cannot be satisfied within the permitted
+        regeneration attempts.
+
+    Notes
+    -----
+    Bin zero initializes the primary neurites using
+    ``tree.synthesize(max_steps=0)``. Every subsequent bin advances synthesis
+    by ``ceil(bin_size / step_size)`` steps.
     """
-    _validate_arguments(
-        tree=tree,
-        n_std=n_std,
-        max_attempts_per_window=max_attempts_per_window,
-        max_total_attempts=max_total_attempts,
-    )
 
+    def _print(message):
+        if verbose:
+            print(f"[progressive synthesis] {message}")
+
+    _validate(tree, n_std, max_attempts_per_window, max_total_attempts)
+
+    # Load the target Sholl statistics.
     constraint = tree.sholl_plot_constraint
-
     mean = np.asarray(constraint["mean"], dtype=float)
     std = np.asarray(constraint["std"], dtype=float)
 
+    if mean.shape != std.shape or mean.ndim != 1 or mean.size == 0:
+        raise ValueError("Sholl mean and std must be nonempty 1D arrays with the same shape.")
 
-
-    if mean.shape != std.shape:
-        raise ValueError(
-            "Sholl mean and standard-deviation arrays must have "
-            "the same shape."
-        )
-
-    if mean.ndim != 1 or mean.size == 0:
-        raise ValueError(
-            "Sholl mean and standard deviation must be nonempty 1D arrays."
-        )
-
+    # Convert one Sholl bin into synthesis steps.
     bin_size = float(tree.event_sampler.bin_size)
-    step_size = float(tree.event_sampler.step_size)
+    steps_per_bin = int(np.ceil(bin_size / float(tree.event_sampler.step_size)))
 
-    if verbose:
-        print('Sholl plot')
-        print('------------------------------------------------')
-        for i, (m, s) in enumerate(zip(mean, std)):
-            print(i * bin_size, '\t', round(m - n_std * s, 1), round(m + n_std * s, 1))
-        print('------------------------------------------------')
-    
-    # Number of synthesis sweeps corresponding to one Sholl bin.
-    steps_per_bin = int(np.ceil(bin_size / step_size))
-
+    # Record the initial state and accepted state after each bin.
     base_log_count = len(tree.synthesis_logs)
-
-    # checkpoints[i] stores the number of logs after bin i is accepted.
     checkpoints = []
-
-    target_bin = 0
     total_attempts = 0
 
-    _print(
-        verbose,
-        f"Starting progressive synthesis for {len(mean)} Sholl bins.",
-    )
-    _print(
-        verbose,
-        f"Using {steps_per_bin} synthesis steps per bin.",
-    )
+    if verbose:
+        print("Sholl plot")
+        print("-" * 48)
+        for i, (m, s) in enumerate(zip(mean, std)):
+            print(i * bin_size, "\t", round(m - n_std * s, 1), round(m + n_std * s, 1))
+        print("-" * 48)
 
-    while target_bin < len(mean):
+    _print(f"Starting synthesis for {len(mean)} bins using {steps_per_bin} steps per bin.")
+
+    # Accept one Sholl bin at a time.
+    for target_bin in range(len(mean)):
         start_bin = target_bin
-        accepted = False
 
-        _print(verbose, f"Targeting bin {target_bin}.")
+        while True:
+            _print(f"Regenerating bins {start_bin}-{target_bin}.")
 
-        while not accepted:
-            attempts_at_depth = 0
-
-            _print(
-                verbose,
-                f"Regeneration window: bins {start_bin} through "
-                f"{target_bin}.",
-            )
-
-            while attempts_at_depth < max_attempts_per_window:
+            # Retry the current rollback window.
+            for window_attempt in range(1, max_attempts_per_window + 1):
                 if total_attempts >= max_total_attempts:
-                    _rollback_to_log_count(tree, base_log_count)
-
-                    raise RuntimeError(
-                        "Unable to satisfy the Sholl constraints within "
-                        f"{max_total_attempts} attempts."
-                    )
+                    _rollback(tree, base_log_count, _print)
+                    raise RuntimeError(f"Unable to satisfy Sholl constraints within {max_total_attempts} attempts.")
 
                 total_attempts += 1
-                attempts_at_depth += 1
+                rollback_count = base_log_count if start_bin == 0 else checkpoints[start_bin - 1]
 
-                _print(
-                    verbose,
-                    f"Attempt {total_attempts}: regenerating bins "
-                    f"{start_bin} through {target_bin} "
-                    f"(window attempt {attempts_at_depth}/"
-                    f"{max_attempts_per_window}).",
-                )
-
-                rollback_log_count = (
-                    base_log_count
-                    if start_bin == 0
-                    else checkpoints[start_bin - 1]
-                )
-
-                _rollback_to_log_count(
-                    tree,
-                    rollback_log_count,
-                    verbose=verbose,
-                )
-
+                _print(f"Attempt {total_attempts}, window attempt {window_attempt}/{max_attempts_per_window}.")
+                _rollback(tree, rollback_count, _print)
                 del checkpoints[start_bin:]
 
-                success = _regenerate_window(
-                    tree=tree,
-                    start_bin=start_bin,
-                    target_bin=target_bin,
-                    mean=mean,
-                    std=std,
-                    n_std=n_std,
-                    bin_size=bin_size,
-                    steps_per_bin=steps_per_bin,
-                    checkpoints=checkpoints,
-                    verbose=verbose,
-                )
-
-                if success:
-                    _print(
-                        verbose,
-                        f"Bin {target_bin} accepted.",
-                    )
-                    accepted = True
+                if _regenerate_window(tree, start_bin, target_bin, mean, std, n_std, bin_size, steps_per_bin, checkpoints, _print):
+                    _print(f"Bin {target_bin} accepted.")
                     break
+            else:
+                # Expand the rollback window after repeated failure.
+                if start_bin == 0:
+                    _rollback(tree, base_log_count, _print)
+                    raise RuntimeError(f"Unable to satisfy Sholl bins 0-{target_bin}.")
 
-                _print(
-                    verbose,
-                    f"Window {start_bin} through {target_bin} failed.",
-                )
+                start_bin -= 1
+                continue
 
-            if accepted:
-                break
+            break
 
-            if start_bin == 0:
-                _rollback_to_log_count(
-                    tree,
-                    base_log_count,
-                    verbose=verbose,
-                )
-
-                raise RuntimeError(
-                    f"Unable to satisfy Sholl bins 0 through {target_bin}."
-                )
-
-            start_bin -= 1
-
-            _print(
-                verbose,
-                f"Expanding rollback window to bins "
-                f"{start_bin} through {target_bin}.",
-            )
-
-        target_bin += 1
-
-    _print(
-        verbose,
-        "Progressive synthesis completed successfully.",
-    )
-
+    _print("Progressive synthesis completed successfully.")
     return tree.roots
 
 
-def _regenerate_window(
-    tree,
-    start_bin,
-    target_bin,
-    mean,
-    std,
-    n_std,
-    bin_size,
-    steps_per_bin,
-    checkpoints,
-    verbose=False,
-):
+def _regenerate_window(tree, start_bin, target_bin, mean, std, n_std, bin_size, steps_per_bin, checkpoints, _print):
     """Regenerate and validate all bins in one rollback window."""
     for bin_index in range(start_bin, target_bin + 1):
-        log_count_before = len(tree.synthesis_logs)
+        previous_log_count = len(tree.synthesis_logs)
 
-        if bin_index == 0:
-            _print(
-                verbose,
-                "Initializing primary neurites.",
-            )
+        # Bin 0 initializes the primary neurites.
+        tree.synthesize(max_steps=0 if bin_index == 0 else steps_per_bin)
 
-            # max_steps=0 initializes the tree without performing
-            # additional neurite synthesis.
-            tree.synthesize(max_steps=0)
-
-        else:
-            _print(
-                verbose,
-                f"Synthesizing bin {bin_index} using "
-                f"{steps_per_bin} steps.",
-            )
-
-            tree.synthesize(
-                max_steps=steps_per_bin,
-            )
-
-        valid, generated, lower, upper = _sholl_bin_status(
-            tree=tree,
-            bin_index=bin_index,
-            mean=mean,
-            std=std,
-            n_std=n_std,
-            bin_size=bin_size,
-        )
-
-        _print(
-            verbose,
-            f"Bin {bin_index}: generated={generated:g}, "
-            f"allowed=[{lower:g}, {upper:g}] -> "
-            f"{'accepted' if valid else 'rejected'}.",
-        )
+        valid, generated, lower, upper = _sholl_status(tree, bin_index, mean, std, n_std, bin_size)
+        status = "accepted" if valid else "rejected"
+        _print(f"Bin {bin_index}: generated={generated:g}, allowed=[{lower:g}, {upper:g}] -> {status}.")
 
         if not valid:
-            # Undo logs generated for this failed bin.
-            _rollback_to_log_count(
-                tree,
-                log_count_before,
-                verbose=verbose,
-            )
+            _rollback(tree, previous_log_count, _print)
             return False
 
         checkpoints.append(len(tree.synthesis_logs))
@@ -271,96 +172,43 @@ def _regenerate_window(
     return True
 
 
-def _sholl_bin_status(
-    tree,
-    bin_index,
-    mean,
-    std,
-    n_std,
-    bin_size,
-):
-    """Return the validation status for one Sholl bin."""
-    generated_plot = tree.sholl_plot(
-        max_distance=bin_index * bin_size,
-    )
+def _sholl_status(tree, bin_index, mean, std, n_std, bin_size):
+    """Return whether one generated Sholl bin satisfies its constraint."""
+    generated = float(tree.sholl_plot(max_distance=bin_index * bin_size)[bin_index])
+    target_mean, target_std = float(mean[bin_index]), float(std[bin_index])
 
-    generated = float(generated_plot[bin_index])
+    # Zero standard deviation requires an exact numerical match.
+    if np.isclose(target_std, 0.0):
+        return bool(np.isclose(generated, target_mean)), generated, target_mean, target_mean
 
-    if np.isclose(std[bin_index], 0.0):
-        lower = upper = float(mean[bin_index])
-        valid = np.isclose(
-            generated,
-            mean[bin_index],
-        )
-    else:
-        lower = float(
-            mean[bin_index] - n_std * std[bin_index]
-        )
-        upper = float(
-            mean[bin_index] + n_std * std[bin_index]
-        )
-
-        valid = lower <= generated <= upper
-
-    return bool(valid), generated, lower, upper
+    lower = target_mean - n_std * target_std
+    upper = target_mean + n_std * target_std
+    return lower <= generated <= upper, generated, lower, upper
 
 
-def _rollback_to_log_count(
-    tree,
-    log_count,
-    verbose=False,
-):
-    """Undo synthesis logs until the requested checkpoint is restored."""
+def _rollback(tree, log_count, _print):
+    """Undo synthesis operations until the requested log count is restored."""
     undo_count = len(tree.synthesis_logs) - log_count
 
     if undo_count > 0:
-        _print(
-            verbose,
-            f"Undoing {undo_count} synthesis log"
-            f"{'s' if undo_count != 1 else ''}.",
-        )
+        suffix = "s" if undo_count != 1 else ""
+        _print(f"Undoing {undo_count} synthesis log{suffix}.")
 
     while len(tree.synthesis_logs) > log_count:
         tree.undo_synthesize()
 
 
-def _validate_arguments(
-    tree,
-    n_std,
-    max_attempts_per_window,
-    max_total_attempts,
-):
-    """Validate progressive-synthesis inputs."""
+def _validate(tree, n_std, max_attempts_per_window, max_total_attempts):
+    """Validate the tree interface and synthesis arguments."""
     if getattr(tree, "sholl_plot_constraint", None) is None:
-        raise ValueError(
-            "tree.sholl_plot_constraint is required."
-        )
-
-    if not hasattr(tree, "synthesize"):
-        raise TypeError(
-            "tree must provide a synthesize(max_steps=...) method."
-        )
-
-    if not hasattr(tree, "undo_synthesize"):
-        raise TypeError(
-            "tree must provide an undo_synthesize() method."
-        )
-
+        raise ValueError("tree.sholl_plot_constraint is required.")
+    if not callable(getattr(tree, "synthesize", None)):
+        raise TypeError("tree must provide synthesize(max_steps=...).")
+    if not callable(getattr(tree, "undo_synthesize", None)):
+        raise TypeError("tree must provide undo_synthesize().")
     if n_std < 0:
         raise ValueError("n_std cannot be negative.")
-
     if max_attempts_per_window <= 0:
-        raise ValueError(
-            "max_attempts_per_window must be positive."
-        )
-
+        raise ValueError("max_attempts_per_window must be positive.")
     if max_total_attempts <= 0:
-        raise ValueError(
-            "max_total_attempts must be positive."
-        )
-
-
-def _print(verbose, message):
-    """Print a progress message when verbose output is enabled."""
-    if verbose:
-        print(f"[progressive synthesis] {message}")
+        raise ValueError("max_total_attempts must be positive.")

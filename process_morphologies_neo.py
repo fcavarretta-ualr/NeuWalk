@@ -10,10 +10,11 @@ m = morphologies.load_morphologies(sys.argv[-1], delete_section_types=delete_sec
 
 
 for x in m:
-  print(x)
-  vis.plot_morphology(x['morphology'])
+  if x == "morphologies/Neocortex/PYR/C030397A-P2.CNG.swc":
+    print(x)
+    vis.plot_morphology(x['morphology'])
 
-  print(x['filename'])
+    print(x['filename'])
 
 
-  swc.write_swc(str(x['filename']) + '.2', x['morphology'])
+  swc.write_swc(str(x['filename']), x['morphology'])

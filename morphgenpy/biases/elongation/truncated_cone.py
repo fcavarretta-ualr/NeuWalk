@@ -38,7 +38,6 @@ def truncated_cone_boundary(
         radii_1[1] + (radii_2[1] - radii_1[1]) * t
         ]
 
-
     # project the point on a concentrical ellipse
 
     rho, phi = misc.EllipsoidalCoordinates.from_cartesian(rel_point[:-1], rel_radii)

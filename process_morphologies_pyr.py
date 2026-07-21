@@ -4,7 +4,7 @@ import morphgenpy.visualization as vis
 
 import sys
 
-delete_section_types = ["unknown", "axon"]
+delete_section_types = ["unknown", "axon", "apical_oblique"]
 
 m = morphologies.load_morphologies(sys.argv[-1], delete_section_types=delete_section_types)
 

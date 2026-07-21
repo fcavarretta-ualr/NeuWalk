@@ -2,6 +2,16 @@ import numpy as np
 
 import copy
 
+def permute(rng, vector):
+    vector = vector.copy()
+
+    ret = []
+
+    while len(vector):
+        i = int(rng.random() * len(vector))
+        ret.append(vector.pop(i))
+    return ret
+            
 
 def translate_points(points, source, target=None):
     """
@@ -22,27 +32,15 @@ def translate_points(points, source, target=None):
         Translated copy of the points.
     """
     is_list = type(points) == list
-    
-    points = np.asarray(points, dtype=float)
-    source = np.asarray(source, dtype=float)
 
     if target is None:
-        target = np.zeros(3, dtype=float)
+        target = np.zeros(3)
+    else:
+        target = target.copy()
 
-    target = np.asarray(target, dtype=float)
-
-    if points.shape[-1] != 3:
-        raise ValueError("points must have final dimension 3.")
-
-    if source.shape != (3,) or target.shape != (3,):
-        raise ValueError("source and target must have shape (3,).")
-
-    points = points + target - source
-
-    if is_list:
-        points = [p for p in points ]
-
-    return points
+    source = source.copy()
+    
+    return [ p.copy() + target - source for p in points.copy() ] 
 
 class Random:
     """Small wrapper around a random-number generator."""

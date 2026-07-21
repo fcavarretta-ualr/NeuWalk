@@ -4,6 +4,8 @@ from ..sampling import EventSampler
 from ..profiles import NeuriteProfile
 from ._progressive_sholl_synthesis import synthesize_progressive
 
+from .. import misc
+
 class TopologySynthesizer:
     """Represent and synthesize a neurite tree profile."""
 
@@ -98,9 +100,7 @@ class TopologySynthesizer:
                 "The neurite tree is already initialized."
             )
 
-        primary_count = (
-            self.main_event_sampler.sample_primary_neurite_count()
-        )
+        primary_count = self.main_event_sampler.sample_primary_neurite_count()
 
         self.roots = [
             NeuriteProfile(
@@ -183,7 +183,7 @@ class TopologySynthesizer:
             verbose=verbose,
         )
 
-    def synthesize(self, max_steps=None):
+    def synthesize(self, max_steps=None, distance_limit=None):
         """
         Synthesize the tree and store the sampled events.
 
@@ -229,7 +229,6 @@ class TopologySynthesizer:
             ]
 
         step = 0
-
         while active_neurites:
             if (
                 max_steps is not None
@@ -243,9 +242,8 @@ class TopologySynthesizer:
                 if not neurite.active:
                     continue
 
-                event = self.event_sampler.sample_event(
-                    neurite
-                )
+                
+                event = self.event_sampler.sample_event(neurite)
 
                 synthesis_log.append(
                     {
@@ -270,7 +268,7 @@ class TopologySynthesizer:
                         f"Unknown synthesis event: {event!r}."
                     )
 
-            active_neurites = next_active_neurites
+            active_neurites = misc.permute(self.rng, next_active_neurites)
             step += 1
 
         self.synthesis_logs.append(synthesis_log)
@@ -306,11 +304,6 @@ class TopologySynthesizer:
 
             elif event == "annihilate":
                 neurite.undo_annihilate()
-
-            elif event == "switch_event_sampler":
-                self.event_sampler = record[
-                    "previous_event_sampler"
-                ]
 
             elif event == "initialize":
                 self.roots = []
