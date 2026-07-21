@@ -1,6 +1,7 @@
 import warnings
 import numpy as np
-from morphgenpy import misc
+from .. import misc
+from .neurite import NeuriteProfile
 
 
 def _get_candidates(targets, density, bin_size):
@@ -27,19 +28,22 @@ def _choice(rng, candidates):
 
 def _tweak_section(section, position):
     """Split a section at an internal step and preserve its connectivity."""
-    section_cont = section.clone()
+    section_cont = NeuriteProfile(section.step_size,
+                                  section_type=section.section_type)
+    # save step count
+    tot_step_count = section.step_count
 
     # Update the continuation before changing the original section.
-    section_cont.distance_from_root += position * section.step_size
-    section_cont.step_count -= position
     section.step_count = position
+    section_cont.step_count = tot_step_count - position
 
     # Transfer the original children to the continuation.
-    for child in list(section.children):
+    for child in section.children:
         child.disconnect_from_parent()
         child.connect(section_cont, relation="parent")
-
+        
     section_cont.connect(section, relation="parent")
+    
     return section, section_cont
 
 
@@ -69,15 +73,13 @@ def _validate_internal_branches(branches, targets, rng, density, bin_size):
         if not np.isfinite(target.distance_from_root):
             raise ValueError("Every target must have a finite distance_from_root.")
 
-    return density
-
 
 def connect_internal_branches(branches, targets, rng, density, bin_size):
     """Connect branches and return (branch, target_section) pairs."""
     _validate_internal_branches(branches, targets, rng, density, bin_size)
 
-    branches = misc.permute(branches, rng)
-    targets = misc.permute(targets, rng)
+    branches = misc.permute(rng, branches)
+    targets = misc.permute(rng, targets)
     connections = []
 
     while branches:

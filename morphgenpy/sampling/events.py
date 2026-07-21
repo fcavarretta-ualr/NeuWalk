@@ -74,7 +74,7 @@ class EventSampler:
         self.rng = rng
         self.step_size = float(step_size)
         self.bin_size = float(bin_size)
-        print('sholl_plot=', sholl_plot)
+
         (
             self.bifurcation_density,
             self.annihilation_density

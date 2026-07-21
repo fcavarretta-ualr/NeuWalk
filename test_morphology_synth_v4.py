@@ -6,11 +6,10 @@ from pathlib import Path
 import numpy as np
 
 from morphgenpy.io import read_swc
-from morphgenpy.profiles import NeuriteProfile
-from morphgenpy.sampling import EventSampler
+from morphgenpy.profiles import NeuriteProfile, connect_internal_branches
 from morphgenpy.synthesis import TopologySynthesizer, MorphologySynthesizer
 from morphgenpy.visualization import plot_morphology
-import morphgenpy.biases as biases
+from morphgenpy import biases
 from morphgenpy.analysis.morphologies import load_morphologies
 from morphgenpy.analysis.extraction import extract_statistics
 from morphgenpy.misc import Random
@@ -176,35 +175,24 @@ def main():
         if section_type != 'basal_dendrite':
           continue
         print('generating profile for ', section_type)
-
-        del params['total_length']
-        params['internal_event_sampler_parameters'] = None
-
-        # set oblique parameters
-##        oblique_present = section_type == "apical_dendrite" and "apical_oblique" in stats
-####        if oblique_present:
-####            tmp = stats['apical_oblique'].copy()
-####            del tmp['total_length']
-####
-####            params['internal_event_sampler_parameters'] = tmp
-
-
-        rng = Random(args.seed)
-        del params['bifurcation_internal_density']
-        del params['internal_event_sampler_parameters']
+        
         topol_synthesizer = TopologySynthesizer(
-            rng=rng,
+            rng=Random(args.seed),
             step_size=args.step_size,
             bin_size=args.bin_size,
             section_type=section_type,
-            **params
+            sholl_plot=params['sholl_plot'],
+            bifurcation_count=params['bifurcation_count'],
+            primary_count_range=params['primary_count_range'],
+            no_bifurcation_bins=params['no_bifurcation_bins'],
+            no_annihilation_bins=params['no_annihilation_bins']
         )
 
         topol_synthesizer.synthesize_progressive(
             n_std=1,
             max_attempts_per_window=5,
             max_total_attempts=1000,
-            verbose=False,
+            verbose=True,
         )
           
         #print('section_type:', section_type)

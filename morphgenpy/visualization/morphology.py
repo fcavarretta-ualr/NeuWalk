@@ -43,7 +43,6 @@ def plot_morphology(
 
     all_points = []
 
-    print(neurite_list)
     for neurite in neurite_list:
         for section in neurite.subtree:
 

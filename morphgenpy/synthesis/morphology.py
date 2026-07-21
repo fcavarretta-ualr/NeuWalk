@@ -95,7 +95,7 @@ class MorphologySynthesizer:
         self.active_neurites = {}
         self.soma = None
 
-    def copy_with(self, **overrides):
+    def copy_with_next_order(self, **overrides):
         """Return a copy with optional constructor-parameter overrides."""
         signature = inspect.signature(self.__class__.__init__)
         parameters = {
@@ -169,6 +169,8 @@ class MorphologySynthesizer:
                     "A bifurcation must have exactly two children."
                 )
 
+            if profile.children[0].order != profile.order or profile.children[1].order != profile.order:
+                return "bifurcate_internal"
 
             return "bifurcate"
 
@@ -245,21 +247,27 @@ class MorphologySynthesizer:
 
                 event = self.next_event(neurite)
 
-                if event == "elongate":
-                    walk.elongate()
-                    self.active_neurites[current_order].append(neurite)
+                match event:
+                    case "elongate":
+                        walk.elongate()
+                        self.active_neurites[current_order].append(neurite)
 
-                elif event == "bifurcate":
-                    children = walk.bifurcate()
+                    case "bifurcate" | "bifurcate_internal":
+                        # select the bifurcation
+                        children = walk.bifurcate() if event == "bifurcate" else walk.bifurcate_internal()
 
-                    for child_profile, child_walk in zip(profile.children, children):
-                        self.active_neurites.setdefault(child_profile.order, []).append((child_profile, child_walk))
+                        # handle children
+                        for child_profile, child_walk in zip(profile.children, children):
+                            if child_profile.order == profile.order:
+                                child_walk.elongate()
+                                
+                            self.active_neurites.setdefault(child_profile.order, []).append((child_profile, child_walk))                  
+                        
+                    case "annihilate":
+                        walk.annihilate()
 
-                elif event == "annihilate":
-                    walk.annihilate()
-
-                elif event is not None:
-                    raise RuntimeError(f"Unknown synthesis event: {event!r}.")
+                    case _:
+                        raise RuntimeError(f"Unknown synthesis event: {event!r}.")
 
             for _, walk in current_neurites:
                 if walk.pending_event:

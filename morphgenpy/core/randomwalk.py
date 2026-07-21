@@ -3,7 +3,7 @@ import numpy as np
 from .. import misc
 from ..biases import ElongationBias
 from .neurite import Neurite
-
+import inspect
 
 class RandomWalk(Neurite):
     """Represent one branching-annihilating random walk."""
@@ -240,10 +240,16 @@ class RandomWalk(Neurite):
         self.pending_event = {"event": "elongation", "point": point, "direction": direction}
         return point
 
+
+    def bifurcate_internal(self):
+        return self._mk_child(initial_direction=self.last_direction), \
+               self._mk_child(initial_direction=self.last_direction)
+
+
     def bifurcate(self):
         """Propose a bifurcation into two active children."""
         self._check_move_allowed()
-
+            
         if self.bifurcation_bias:
             initial_directions = self.bifurcation_bias.compute(self.rng, self)
 
@@ -256,37 +262,35 @@ class RandomWalk(Neurite):
     
         children = []
 
-        for initial_direction in initial_directions:
+        for i, initial_direction in enumerate(initial_directions):
             children.append(
-                self.__class__(
-                    rng=self.rng,
-                    step_size=self.step_size,
-                    first_point=self.current_point,
-                    origin=self.origin,
-                    initial_direction=initial_direction,
-                    elongation_bias=self.elongation_biases,
-                    bifurcation_bias=self.bifurcation_bias,
-                    centrifugal=self.centrifugal,
-                    parent=self,
-                    active=True,
-                    section_type=self.section_type,
-                    max_angle=self.max_angle,
-                    elongation_random_weight=self.elongation_random_weight,
-                    elongation_random_hill_k=self.elongation_random_hill_k,
-                    elongation_random_hill_n=self.elongation_random_hill_n,
-                    elongation_bias_weight=self.elongation_bias_weight,
-                    max_step_size=self.max_step_size
+                self._mk_child(initial_direction=initial_direction)
                 )
-            )
-
 
         self.pending_event = {
-            "event": "bifurcation",
+            "event": event,
             "children": children
             }
         
         return children
+    
 
+    def _mk_child(self, **kwargs):
+        parameters = inspect.signature(type(self).__init__).parameters
+        values = {name: getattr(self, name) for name in parameters if name != "self"}
+
+        # typical for children
+        values['first_point'] = self.points[-1].copy()
+        values['parent'] = self
+
+        unknown = set(kwargs) - set(values)
+        if unknown:
+            raise TypeError(f"Unexpected parameter(s): {sorted(unknown)}")
+
+        values.update(kwargs)
+        return type(self)(**values)
+
+    
     def annihilate(self):
         """Propose annihilation."""
         self._check_move_allowed()
@@ -311,7 +315,7 @@ class RandomWalk(Neurite):
             self.internal_bifurcation = False
             result = tuple(children)
 
-        elif event == "internal_bifurcation":
+        elif event == "bifurcation_internal":
             children = self.pending_event["children"]
             points = self.pending_event["points"]
 
