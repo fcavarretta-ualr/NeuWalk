@@ -94,10 +94,18 @@ def connect_internal_branches(branches, targets, rng, density, bin_size):
 
         branch = branches.pop()
         target, position, _ = candidates[_choice(rng, candidates)]
-        section, section_cont = _tweak_section(target, position)
+        target, target_cont = _tweak_section(target, position)
 
-        targets.append(section_cont)
-        branch.connect(section, relation="parent")
-        connections.append((branch, section))
+        targets.append(target_cont)
+        branch.connect(target, relation="parent")
+        connections.append((branch, target))
 
+        
+    # increase the order of the obliques
+    for branch, _ in connections:
+        branch.order = branch.parent.order + 1
+        for sub_branch in branch.subtree:
+          if sub_branch != branch:
+            sub_branch.order = branch.order
+            
     return connections

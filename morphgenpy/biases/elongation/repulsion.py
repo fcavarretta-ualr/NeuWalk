@@ -13,7 +13,15 @@ def _dendrite_repulsion(reference_dendrite, point, dendrites, K, n):
         # from current point and ghost point
         delta = point - points
         distance = np.linalg.norm(delta, axis=1)
+
+        index0 = np.isclose(distance, 0.0)
+        
         direction = (delta.T / distance).T
+        if sum(index0) == direction.shape[0]:
+            continue
+
+        # ignore zeros
+        direction = direction[~index0, :]
         
         # step length between points
         tmp = np.linalg.norm(points[1:, :] - points[:-1, :], axis=1)
@@ -60,6 +68,7 @@ def dendrite_repulsion(reference_dendrite, reference_direction, dendrites, K, n,
     result0 = _dendrite_repulsion(reference_dendrite,
                         reference_dendrite.current_point,
                         dendrites, K, n)
+
     result1 = _dendrite_repulsion(reference_dendrite,
                         ghost_point,
                         dendrites, K, n)
@@ -75,12 +84,16 @@ def dendrite_repulsion(reference_dendrite, reference_direction, dendrites, K, n,
 
 @BiasRegistry.register_elongation("sibling_repulsion")
 def sibling_repulsion(rng, random_walk, reference_direction, K, n, **kwargs):
+    if random_walk.is_root_like:
+        return None
     sections = random_walk.siblings
     return dendrite_repulsion(random_walk, reference_direction, sections, K, n, **kwargs)
 
 
 @BiasRegistry.register_elongation("parent_repulsion")
 def parent_repulsion(rng, random_walk, reference_direction, K, n, **kwargs):
+    if random_walk.is_root_like:
+        return None
     sections = [random_walk.parent] if random_walk.parent else []
     return dendrite_repulsion(random_walk, reference_direction, sections, K, n, **kwargs)
 
@@ -98,7 +111,7 @@ def all_dendrites_repulsion(rng, random_walk, reference_direction, K, n, **kwarg
 @BiasRegistry.register_elongation("nonrelated_repulsion")
 def nonrelated_repulsion(rng, random_walk, reference_direction, K, n, **kwargs):
     sections = [
-        d for d in random_walk.wholetree
+        d for d in random_walk.absolute_root.wholetree
         if d is not random_walk and d.section_type != "soma"
     ]
 
@@ -113,35 +126,31 @@ def nonrelated_repulsion(rng, random_walk, reference_direction, K, n, **kwargs):
 
 @BiasRegistry.register_elongation("root_repulsion")
 def root_repulsion_bias(rng, reference_dendrite, reference_direction, K, n, **kwargs):
-    # get the root
-
-    def _get_root(dendrite):
-        while dendrite.parent:
-            if hasattr(dendrite, 'internal_bifurcation') and dendrite.internal_bifurcation:
-                break
-            dendrite = dendrite.parent
-        return dendrite
-
-    
-    root = _get_root(reference_dendrite)
+    # get the root   
+    root = reference_dendrite.root
     
     if (K is None) != (n is None):
         raise ValueError("K and n must both be provided or both be None.")
 
-    # calculate the ghost point
-    ghost_point = reference_dendrite._generate_point(reference_direction)
 
     def compute(point):
         delta = point - root.points[0]
         distance = np.linalg.norm(delta)
+        
+        if np.isclose(distance, 0.):
+            return None
+        
         direction = delta / distance
-        factor = 1.0 if K is None else misc.hill(distance, K, n)
-        factor *= np.linalg.norm(point - reference_dendrite.current_point)
+        factor = 1.0 if K is None else misc.hill(distance, K, n)     
         return direction * factor
 
 
-    result = (compute(reference_dendrite.points[-1]) + compute(ghost_point)) * 0.5
+    component1 = compute(reference_dendrite.points[-1])
 
-    result = _projection.project(reference_dendrite, result, **kwargs)
+    component2 = compute(reference_dendrite._generate_point(reference_direction))
 
-    return result
+
+    if component1 is None or component2 is None:
+        return None
+        
+    return _projection.project(reference_dendrite, (component1+component2)*0.5, **kwargs)    

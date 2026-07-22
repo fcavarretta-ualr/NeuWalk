@@ -20,6 +20,7 @@ class MorphologySynthesizer:
         axis_direction=None,
         elongation_bias=None,
         bifurcation_bias=None,
+        bifurcation_internal_bias=None,
         centrifugal=True,
         max_angle=np.pi / 2,
         elongation_random_weight=1.0,
@@ -88,34 +89,13 @@ class MorphologySynthesizer:
         self.axis_direction = None if axis_direction is None else axis_direction.copy()
         self.elongation_bias = elongation_bias
         self.bifurcation_bias = bifurcation_bias
+        self.bifurcation_internal_bias = bifurcation_internal_bias
         self.centrifugal = bool(centrifugal)
         self.max_angle = max_angle
         self.elongation_random_weight = elongation_random_weight
         self.elongation_bias_weight = elongation_bias_weight
         self.active_neurites = {}
         self.soma = None
-
-    def copy_with_next_order(self, **overrides):
-        """Return a copy with optional constructor-parameter overrides."""
-        signature = inspect.signature(self.__class__.__init__)
-        parameters = {
-            name: getattr(self, name)
-            for name, parameter in signature.parameters.items()
-            if name != "self"
-            and parameter.kind not in (
-                inspect.Parameter.VAR_POSITIONAL,
-                inspect.Parameter.VAR_KEYWORD,
-            )
-        }
-        parameters.update(overrides)
-
-        copy = self.__class__(**parameters)
-        copy.soma = self.soma
-        copy.active_neurites = {
-            order: list(neurites)
-            for order, neurites in self.active_neurites.items()
-        }
-        return copy
 
     def _resolve_primary_angles(self, primary_count):
         """Resolve theta and phi independently for the primary-dendrite count."""
@@ -179,7 +159,12 @@ class MorphologySynthesizer:
 
         return None
 
-    def synthesize(self, max_steps=None):
+    @property
+    def finished(self):
+        """ Check whether there are not more active neurites """
+        return len(self.active_neurites) == 0
+        
+    def synthesize(self, max_steps=None, **overrides):
         """Generate all dendrites of the current minimum order."""
         if max_steps is not None:
             if not isinstance(max_steps, int) or isinstance(max_steps, bool):
@@ -187,6 +172,7 @@ class MorphologySynthesizer:
 
             if max_steps < 0:
                 raise ValueError("max_steps cannot be negative.")
+
 
         if self.soma is None:
             self.soma = Neurite(points=[self.origin.copy()], section_type="soma")
@@ -213,6 +199,7 @@ class MorphologySynthesizer:
                     initial_direction=initial_direction,
                     elongation_bias=self.elongation_bias,
                     bifurcation_bias=self.bifurcation_bias,
+                    bifurcation_internal_bias=self.bifurcation_internal_bias,
                     centrifugal=self.centrifugal,
                     parent=self.soma,
                     section_type=profile.section_type,
@@ -228,6 +215,9 @@ class MorphologySynthesizer:
         current_order = min(self.active_neurites)
 
         for _, walk in self.active_neurites[current_order]:
+            # set eventual values for the neurites
+            for name, value in overrides.items():
+                setattr(walk, name, value)
             walk.active = True
 
         step = 0
@@ -257,10 +247,12 @@ class MorphologySynthesizer:
                         children = walk.bifurcate() if event == "bifurcate" else walk.bifurcate_internal()
 
                         # handle children
-                        for child_profile, child_walk in zip(profile.children, children):
-                            if child_profile.order == profile.order:
-                                child_walk.elongate()
+                        for child_profile, child_walk in zip(profile.children, children):                                
                                 
+                            # section type may change
+                            child_walk.section_type = child_profile.section_type
+
+                            # add neurites
                             self.active_neurites.setdefault(child_profile.order, []).append((child_profile, child_walk))                  
                         
                     case "annihilate":

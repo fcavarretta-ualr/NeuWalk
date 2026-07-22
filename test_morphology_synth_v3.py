@@ -62,14 +62,14 @@ def main():
     parser.add_argument("--max-steps", type=int, default=100)
     parser.add_argument("--seed", type=int, default=1234)
     parser.add_argument("--verbose", type=bool, default=False)
-    parser.add_argument("--n-std", type=float, default=3.0)
+    parser.add_argument("--n-std", type=float, default=1.0)
     parser.add_argument("--max-attempts-per-window", type=int, default=10)
     parser.add_argument("--max-total-attempts", type=int, default=1000)
     args = parser.parse_args()
   
     basal_dendrites = [extract_neurites(m['morphology'], section_type="basal_dendrite") for m in load_morphologies(args.directory, delete_section_types=["unknown", "apical_oblique", "apical_secondary_oblique", "apical_secondary_dendrite", "apical_dendrite"]) if len(m['morphology'])]
     apical_dendrites = [extract_neurites(m['morphology'], section_type="apical_dendrite") for m in load_morphologies(args.directory, delete_section_types=["unknown", "apical_oblique", "apical_secondary_oblique", "apical_secondary_dendrite", "basal_dendrite"]) if len(m['morphology'])]
-    apical_obliques = [extract_neurites(m['morphology'], section_type="apical_oblique") for m in load_morphologies(args.directory, delete_section_types=["unknown", "apical_dendrite", "apical_secondary_oblique", "apical_secondary_dendrite", "basal_dendrite"]) if len(m['morphology'])]
+    apical_obliques = [extract_neurites(m['morphology'], section_type="apical_oblique") for m in load_morphologies(args.directory, delete_section_types=["unknown", "apical_dendrite", "apical_secondary_oblique", "apical_secondary_dendrite", "basal_dendrite", "soma"]) if len(m['morphology'])]
     apical_dendrites_with_oblique = [extract_neurites(m['morphology'], section_type="apical_dendrite") for m in load_morphologies(args.directory, delete_section_types=["unknown", "apical_secondary_oblique", "apical_secondary_dendrite"]) if len(m['morphology'])]
       
     stats = {}
@@ -105,33 +105,28 @@ def main():
 
 
         profiles[section_type] = topol_synthesizer.roots
-        
-
 
     # connect obliques
     connect_internal_branches(profiles['apical_oblique'], profiles['apical_dendrite'], Random(args.seed), bifurcation_internal_density, args.bin_size)
-
-    # increase the order of the obliques
-    for r in profiles['apical_oblique']:
-      if r.parent:
-        r.order = r.parent.order + 1
-        for s in r.subtree:
-          if s != r:
-            s.order = r.order
     
-    b1 = biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 0.]), (170., 0., 0.), (2.5, 2.5), (2.5, 2.5), 1, 2, strict=True)
-    b2 = biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 170.]), (310., 0., 0.), (2.5, 2.5), (25, 50.0), 1, 2, strict=True)
-    b3 = biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 480.]), (260., 0., 0.), (25, 50.0), (25.0, 100.0), 1, 2, strict=True)
-    b4 = biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 740.]), (260., 0., 0.), (25.0, 100.0), (50.0, 200.0), 1, 2, strict=True)
-    b = b1 + b2 + b3 + b4
+    b1 = biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 0.]), (220., 0., 0.), (2.5, 2.5), (2.5, 2.5), 1, 1, strict=True)
+    b2 = biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 220.]), (50., 0., 0.), (2.5, 2.5), (25.0, 75.0), 1, 1, strict=True)
+    b3 = biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 270.]), (470., 0., 0.), (25.0, 75.0), (25.0, 75.0), 1, 1, strict=True)
+    b4 = biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 740.]), (160., 0., 0.), (25.0, 75.0), (150.0, 150.0), 1, 1, strict=True)
+    b5 = biases.get_elongation("plane_boundary", np.array([0., 0., 900.]), (np.pi, 0.), 10, -2)
+    b = b1 + b2 + b3 + b4 + 2 * b5
 
+    c1 = biases.get_elongation("sibling_repulsion", 25.0, -2)
+    c2 = biases.get_elongation("nonrelated_repulsion", 25.0, -2)
+    c = c1 + c2
     elongation_bias = []
-    elongation_bias.append((0.003, biases.get_elongation("sibling_repulsion", 10.0, -2)))
-    elongation_bias.append((0.006, biases.get_elongation("nonrelated_repulsion", 10.0, -2)))
-    elongation_bias.append((0.2, b))
-    elongation_bias.append((0.175, biases.get_elongation("plane_boundary", np.array([0., 0., 900.]), (np.pi, 0.), 20, -2)))
-    elongation_random_weight = 0.75
-    bifurcation_bias = biases.get_bifurcation("radial_torsion", np.pi / 6)
+    elongation_bias.append((0.5, b))
+    elongation_bias.append((0.002, c))
+    elongation_random_weight = 5
+    max_angle = np.pi / 4
+    
+    bifurcation_bias = biases.get_bifurcation("radial_torsion", np.pi / 3)
+    bifurcation_internal_bias = biases.get_bifurcation("internal_branch", np.pi / 2)  
 
     
 
@@ -147,33 +142,28 @@ def main():
         phi=0,
         axis_direction=np.array([0.0, 0.0, 1.0]),
         bifurcation_bias=bifurcation_bias,
+        bifurcation_internal_bias=bifurcation_internal_bias,
         elongation_bias=elongation_bias,
         elongation_random_weight=elongation_random_weight,
+        max_angle=max_angle
     )
     
     soma_apical = morph_synthesizer.synthesize()
 
     elongation_bias = list()
-    elongation_bias.append((0.003, biases.get_elongation("sibling_repulsion", 10.0, -2)))
-    elongation_bias.append((0.006, biases.get_elongation("nonrelated_repulsion", 10.0, -2)))
-    elongation_bias.append((0.001, biases.get_elongation("root_repulsion", None, None)))
+    r = biases.get_elongation("root_repulsion", 100, -1)
+    elongation_bias.append((0.5, r))
+    elongation_bias.append((0.002, c))
 
-    bifurcation_bias = biases.get_bifurcation("radial_torsion", np.pi / 6)
-    
-    morph_synthesizer = morph_synthesizer.copy_with_next_order(
+    # generate the second order
+    morph_synthesizer.synthesize(
+      is_root_like=True,
       elongation_bias=elongation_bias,
-      bifurcation_bias=bifurcation_bias
       )
-    morph_synthesizer.synthesize()
     
-    
-    elongation_bias = list()
-    elongation_bias.append((0.003, biases.get_elongation("sibling_repulsion", 10.0, -2)))
-    elongation_bias.append((0.006, biases.get_elongation("nonrelated_repulsion", 10.0, -2)))
-    elongation_bias.append((0.001, biases.get_elongation("root_repulsion", None, None)))
+  
 
-    bifurcation_bias = biases.get_bifurcation("radial_torsion", np.pi / 6)
-    
+
     soma_profile = NeuriteProfile(step_size=args.step_size, section_type="soma")
     for root in profiles['basal_dendrite']:
         root.connect(soma_profile, relation="parent")
@@ -186,7 +176,8 @@ def main():
         axis_direction=np.array([0.0, 0.0, -1.0]),
         bifurcation_bias=bifurcation_bias,
         elongation_bias=elongation_bias,
-        elongation_random_weight=elongation_random_weight
+        elongation_random_weight=elongation_random_weight,
+        max_angle=max_angle
     )
     soma_basal = morph_synthesizer.synthesize()
 

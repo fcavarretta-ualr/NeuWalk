@@ -19,6 +19,7 @@ class RandomWalk(Neurite):
         initial_direction=None,
         elongation_bias=None,
         bifurcation_bias=None,
+        bifurcation_internal_bias=None,
         centrifugal=True,
         parent=None,
         active=True,
@@ -28,7 +29,7 @@ class RandomWalk(Neurite):
         elongation_random_hill_k=None,
         elongation_random_hill_n=None,
         elongation_bias_weight=1.0,
-        max_step_size=10
+        max_step_size=20
     ):
         """Initialize the random walk."""
 
@@ -40,7 +41,7 @@ class RandomWalk(Neurite):
         if not np.isfinite(step_size) or step_size <= 0.0:
             raise ValueError("step_size must be finite and positive.")
 
-        origin = np.zeros(3, dtype=float) if origin is None else self._validate_vector(origin, "origin")
+
 
         if first_point is None:
             first_point = parent.points[-1].copy() if parent is not None else origin.copy()
@@ -60,14 +61,18 @@ class RandomWalk(Neurite):
         if initial_direction is not None:
             initial_direction = misc.vector_normalize(self._validate_vector(initial_direction, "initial_direction"))
 
-        self.elongation_biases = self._prepare_elongation_biases(elongation_bias)
-        self._validate_bias(bifurcation_bias, "bifurcation_bias")
+        self._elongation_bias = None
+        self._bifurcation_bias = None
+        self._bifurcation_internal_bias = None
+
+        self.elongation_bias = elongation_bias
+        self.bifurcation_bias = bifurcation_bias
+        self.bifurcation_internal_bias = bifurcation_internal_bias
 
         self.rng = rng
-        self.origin = origin.copy()
+
         self.step_size = step_size
         self.initial_direction = None if initial_direction is None else initial_direction.copy()
-        self.bifurcation_bias = bifurcation_bias
         self.centrifugal = bool(centrifugal)
         self.active = bool(active)
         self.pending_event = None
@@ -135,6 +140,38 @@ class RandomWalk(Neurite):
 
 
     @property
+    def origin(self):
+        return self.root.points[0].copy()
+
+    @property
+    def elongation_bias(self):
+        return self._elongation_bias
+
+    @elongation_bias.setter
+    def elongation_bias(self, bias):
+        self._elongation_bias = self._prepare_elongation_biases(bias)
+
+    @property
+    def bifurcation_internal_bias(self):
+        return self._bifurcation_internal_bias
+
+    @bifurcation_internal_bias.setter
+    def bifurcation_internal_bias(self, bias):
+        self._validate_bias(bias, "bifurcation_internal_bias")
+        self._bifurcation_internal_bias = bias
+        
+    @property
+    def bifurcation_bias(self):
+        return self._bifurcation_bias
+
+    @bifurcation_bias.setter
+    def bifurcation_bias(self, bias):
+        self._validate_bias(bias, "bifurcation_bias")
+        self._bifurcation_bias = bias        
+
+        
+        
+    @property
     def first_point(self):
         """Return the first point."""
         return self.points[0].copy()
@@ -197,7 +234,7 @@ class RandomWalk(Neurite):
         # if it is the first point, do not compute bias
         if not ( (self.parent is None or self.parent.section_type == "soma") and len(self.points) < 2 ):
             # calculate the effect of the bias
-            for weight, bias in self.elongation_biases:
+            for weight, bias in self.elongation_bias:
                 value = bias.compute(self.rng, self, direction)
 
                 if value is None:
@@ -242,19 +279,24 @@ class RandomWalk(Neurite):
 
 
     def bifurcate_internal(self):
-        return self._mk_child(initial_direction=self.last_direction), \
-               self._mk_child(initial_direction=self.last_direction)
+        return self._bifurcate(True)
 
-
+    
     def bifurcate(self):
+        return self._bifurcate(False)
+
+
+    def _bifurcate(self, internal=False):
         """Propose a bifurcation into two active children."""
         self._check_move_allowed()
+
+        bias, event = (self.bifurcation_internal_bias, "bifurcation_internal") if internal else (self.bifurcation_bias, "bifurcation")
             
-        if self.bifurcation_bias:
-            initial_directions = self.bifurcation_bias.compute(self.rng, self)
+        if bias:
+            initial_directions = bias.compute(self.rng, self)
 
         else:
-            initial_direction = (
+            initial_directions = (
                 self._sample_direction(self.last_direction),
                 self._sample_direction(self.last_direction)
                 )
@@ -262,7 +304,7 @@ class RandomWalk(Neurite):
     
         children = []
 
-        for i, initial_direction in enumerate(initial_directions):
+        for initial_direction in initial_directions:
             children.append(
                 self._mk_child(initial_direction=initial_direction)
                 )
@@ -303,38 +345,24 @@ class RandomWalk(Neurite):
 
         event = self.pending_event["event"]
 
-        if event == "elongation":
-            point = self.pending_event["point"].copy()
-            self.points.append(point)
-            result = point
+        match event:
+            case "elongation":
+                point = self.pending_event["point"].copy()
+                self.points.append(point)
+                result = point
 
-        elif event == "bifurcation":
-            children = self.pending_event["children"]
-            self._children = list(children)
-            self.active = False
-            self.internal_bifurcation = False
-            result = tuple(children)
+            case "bifurcation" | "bifurcation_internal":
+                children = self.pending_event["children"]
+                self._children = list(children)
+                self.active = False
+                result = tuple(children)
 
-        elif event == "bifurcation_internal":
-            children = self.pending_event["children"]
-            points = self.pending_event["points"]
+            case "annihilation":
+                self.active = False
+                result = None
 
-            for child, point in zip(children, points):
-                child.points.append(point.copy())
-
-            children[0].active = True
-            children[1].active = False
-            self._children = list(children)
-            self.active = False
-            self.internal_bifurcation = True
-            result = tuple(children)
-
-        elif event == "annihilation":
-            self.active = False
-            result = None
-
-        else:
-            raise RuntimeError(f"Unknown pending event: {event!r}.")
+            case _:
+                raise RuntimeError(f"Unknown pending event: {event!r}.")
 
         self.pending_event = None
         return result

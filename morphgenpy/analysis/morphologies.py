@@ -123,6 +123,7 @@ def translate_sections(roots):
         source = root.points[0].copy()
         for section in root.subtree:
             section.points = [p-source for p in section.points]
+            #print(section.points, source)
 
     
 
@@ -165,9 +166,10 @@ def process_morphology(roots, delete_section_types=None):
 
     # 2. check all the sections and delete duplicated consecutive points
     delete_consecutive_duplicate_points(roots)
-    
-    # 3. replace some with point centered on the origin
-    process_soma(roots)
+
+    if "soma" not in delete_section_types:
+        # 3. replace some with point centered on the origin
+        process_soma(roots)
     
     # 3. delete section with a single point
     # we are assuming that all sections have their connectivity already fixed
@@ -176,6 +178,7 @@ def process_morphology(roots, delete_section_types=None):
     
     # 5. translate sections
     translate_sections(roots)
+
     
 
 
