@@ -25,6 +25,8 @@ def _dendrite_repulsion(reference_dendrite, point, dendrites, K, n):
         
         direction = (delta.T / distance).T
 
+        points = points[index0, :]
+
         # step length between points
         tmp = np.linalg.norm(points[1:, :] - points[:-1, :], axis=1)
 

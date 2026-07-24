@@ -4,7 +4,6 @@ from ... import misc
 
 def truncated_cone_boundary(
     reference_dendrite,
-    reference_direction, 
     origin,
     axis,
     radii_1,
@@ -33,40 +32,35 @@ def truncated_cone_boundary(
     # with strict flag do not return any bias if outside the boundaries
     if strict and (t < 0 or t > 1):
         return None
-    
-    # dest point
-    dest_point = t * axis_direction * length + origin
-
-    # direction
-    direction = dest_point - reference_dendrite.current_point
-
-    if np.isclose(np.linalg.norm(direction), 0.0):
-        return None
-    
-    if np.dot(reference_direction, direction) > 0:         
-        return np.zeros(3)
-    
-    if t < 0:
-
-        factor = 1
-
-    else:
         
-        rel_radii = [
-            radii_1[0] + (radii_2[0] - radii_1[0]) * t,
-            radii_1[1] + (radii_2[1] - radii_1[1]) * t
-            ]
+    rel_radii = [
+        radii_1[0] + (radii_2[0] - radii_1[0]) * t,
+        radii_1[1] + (radii_2[1] - radii_1[1]) * t
+        ]
 
+    # project the point on a concentrical ellipse
 
-        rho, phi = misc.EllipsoidalCoordinates.from_cartesian(rel_point[:-1], rel_radii)
+    rho, phi = misc.EllipsoidalCoordinates.from_cartesian(rel_point[:-1], rel_radii)
 
-        # distance dependent factor
-        factor = misc.hill(rho, K, n)
+    # distance dependent factor
+    factor = misc.hill(rho, K, n)
     
+    if rho <= 1:         
+        return axis_direction * factor
+        
 
-    #print(direction, reference_dendrite.current_point, dest_point)
-    return misc.vector_normalize(direction) * factor
+    # relative coordinates
+    rel_extreme = np.append(
+        misc.EllipsoidalCoordinates.to_cartesian((rho, phi), rel_radii),
+        rel_point[2])
 
+    # get the two extreme to calculate the bias direction
+    extreme = misc.AxialFrame.to_global(rel_extreme, axis_direction, center=origin)
+
+    if np.isclose(np.linalg.norm(extreme - reference_dendrite.current_point), 0):
+            return axis_direction * factor
+
+    return misc._normalize(extreme - reference_dendrite.current_point) * factor
 
 
 
@@ -92,7 +86,6 @@ def truncated_cone_boundary_bias(
 
     return truncated_cone_boundary(
         reference_dendrite,
-        reference_direction, 
         origin,
         axis,
         radii_1,

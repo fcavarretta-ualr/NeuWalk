@@ -164,7 +164,7 @@ class MorphologySynthesizer:
         """ Check whether there are not more active neurites """
         return len(self.active_neurites) == 0
         
-    def synthesize(self, max_steps=None, **overrides):
+    def synthesize(self, max_steps=None, soma=None, **overrides):
         """Generate all dendrites of the current minimum order."""
         if max_steps is not None:
             if not isinstance(max_steps, int) or isinstance(max_steps, bool):
@@ -175,7 +175,10 @@ class MorphologySynthesizer:
 
 
         if self.soma is None:
-            self.soma = Neurite(points=[self.origin.copy()], section_type="soma")
+            if soma is not None:
+                self.soma = soma
+            else:
+                self.soma = Neurite(points=[self.origin.copy()], section_type="soma")
 
             if self.root.section_type == "soma":
                 primary_profiles = list(self.root.children)
