@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-
+from ..core.neurite import Neurite, Neuron
 
 def plot_morphology(
     neurite_list,
@@ -31,7 +31,7 @@ def plot_morphology(
     matplotlib.axes.Axes
         The 3D axis.
     """
-    if type(neurite_list) != list:
+    if isinstance(neurite_list, Neurite):
         neurite_list = [neurite_list]
 
     if section_colors is None:

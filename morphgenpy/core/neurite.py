@@ -216,5 +216,43 @@ class Neurite(NeuriteObject):
 
 
 
+class Neuron(list):
+    """List containing only Neurite objects."""
+
+    def __init__(self, neurites=()):
+        super().__init__()
+        self.extend(neurites)
+
+    @staticmethod
+    def _check(neurite):
+        """Validate a neurite."""
+        if not isinstance(neurite, Neurite):
+            raise TypeError(f"Expected Neurite, got {type(neurite).__name__}.")
+        return neurite
+
+    def append(self, neurite):
+        super().append(self._check(neurite))
+
+    def extend(self, neurites):
+        super().extend(self._check(neurite) for neurite in neurites)
+
+    def insert(self, index, neurite):
+        super().insert(index, self._check(neurite))
+
+    def __setitem__(self, index, value):
+        value = [self._check(neurite) for neurite in value] if isinstance(index, slice) else self._check(value)
+        super().__setitem__(index, value)
+
+    def __iadd__(self, neurites):
+        self.extend(neurites)
+        return self
+
+    def wholetree(self, section_type=None):
+        """Iterate over all neurites, optionally filtered by section type."""
+        for neurite in self:
+            for descendant in neurite.wholetree():
+                if section_type is None or descendant.section_type == section_type:
+                    yield descendant
+
 
 

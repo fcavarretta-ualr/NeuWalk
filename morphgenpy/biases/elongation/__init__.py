@@ -14,3 +14,6 @@ from .plane import (
     plane_boundary_bias,
 )
 
+from .attraction import (
+  attraction_bias
+)

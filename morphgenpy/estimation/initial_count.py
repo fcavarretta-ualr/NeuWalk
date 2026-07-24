@@ -167,6 +167,8 @@ def initial_count_pmf(
 
     # Solve
     opt = pyo.SolverFactory(solver)
+    opt.options["print_level"] = 0
+    opt.options["sb"] = "yes"
     if opt is None or not opt.available():
         raise RuntimeError(
             f"Solver '{solver}' is not available. Install/configure it (e.g., ipopt) "
@@ -176,7 +178,7 @@ def initial_count_pmf(
         for k, v in solver_options.items():
             opt.options[k] = v
 
-    res = opt.solve(m, tee=True)
+    res = opt.solve(m, tee=False)
 
     # -----------------------------
     # Extract solution into numpy array

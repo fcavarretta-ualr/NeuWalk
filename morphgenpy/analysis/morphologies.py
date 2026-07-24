@@ -4,7 +4,7 @@ import numpy as np
 
 from .. import misc
 from ..io import read_swc
-from ..core.neurite import Neurite
+from ..core.neurite import Neurite, Neuron
 
 def _all_sections(roots, non_soma_only=True):
     """ iterate all the sections """
@@ -14,7 +14,7 @@ def _all_sections(roots, non_soma_only=True):
     return ret
 
     
-def repair_sections(roots, tolerance=15, verbose=True):
+def repair_sections(roots, tolerance=10, verbose=True):
     """Remove consecutive duplicate points from every section in the tree."""
 
     # Fix all leaves
@@ -139,8 +139,14 @@ def process_soma(roots):
             if section.parent and section.parent.section_type != "soma":
                 raise ValueError("Soma has a non-soma parent")
 
+            soma.points += section.points
 
-        else:
+    # calculate baricenter
+    soma.points = [np.mean(soma.points, axis=0)]
+
+    # check soma integrity
+    for section in _all_sections(roots, non_soma_only=True):              
+        # delete somata
             # disconnect from previous somata
             if section.parent and section.parent.section_type == "soma":
                 section.disconnect_from_parent()
@@ -148,11 +154,8 @@ def process_soma(roots):
             # if it has not parent connect with the new soma
             if not section.parent:
                 section.connect(soma, relation="parent")
-                soma.points.append(section.points[0])
-
-    # calculate baricenter
-    soma.points = [np.mean(soma.points, axis=0)]
-
+                section.points.insert(0, soma.points[0])
+                
     # revise root list
     roots.clear()
     roots.append(soma)
@@ -216,11 +219,9 @@ def load_morphologies(directory, delete_section_types="unknown"):
 
         # preprocess morphology
         process_morphology(m, delete_section_types)
-
+        
         # append morphology
-        morphologies.append({
-            'filename':filename,
-            'morphology':m
-            })
+        if m:
+            morphologies.append(Neuron(m))
 
     return morphologies

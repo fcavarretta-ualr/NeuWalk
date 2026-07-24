@@ -14,15 +14,17 @@ def _dendrite_repulsion(reference_dendrite, point, dendrites, K, n):
         delta = point - points
         distance = np.linalg.norm(delta, axis=1)
 
-        index0 = np.isclose(distance, 0.0)
-        
-        direction = (delta.T / distance).T
-        if sum(index0) == direction.shape[0]:
+        index0 = ~np.isclose(distance, 0.0)
+
+        if sum(index0) < 1:
             continue
 
         # ignore zeros
-        direction = direction[~index0, :]
+        delta = delta[index0, :]
+        distance = distance[index0]
         
+        direction = (delta.T / distance).T
+
         # step length between points
         tmp = np.linalg.norm(points[1:, :] - points[:-1, :], axis=1)
 
@@ -35,13 +37,8 @@ def _dendrite_repulsion(reference_dendrite, point, dendrites, K, n):
         directions.append(direction)
         distances.append(distance)
         lengths.append(length)
-##        # let's integrate
-##        directions.append(
-##          (direction[:-1, :].T * weight[:-1] + direction[1:, :].T * weight[1:]) / (weight[:-1] + weight[1:]) * length)
-##
-##        # integral of the weights
-##        weights.append((weight[:-1] + weight[1:]) * 0.5 * length)
 
+    
     directions = np.vstack(directions)
     distances = np.concatenate(distances)
     lengths = np.concatenate(lengths)
@@ -74,7 +71,9 @@ def dendrite_repulsion(reference_dendrite, reference_direction, dendrites, K, n,
                         dendrites, K, n)
 
     # result direction
+
     result = (result0 + result1) * 0.5
+
     #weight = np.linalg.norm(result)
     #result_direction = result / weight
 

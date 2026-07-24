@@ -65,8 +65,8 @@ class TopologySynthesizer:
         self.section_type = section_type       
 
         self.sholl_plot_constraint = sholl_plot
-        self.bifurcation_count = bifurcation_count
-        self.primary_count_range = primary_count_range
+        self.bifurcation_count_constraint = bifurcation_count
+        self.primary_count_range_constraint = primary_count_range
 
         self.main_event_sampler = EventSampler(
             rng=rng,
@@ -145,7 +145,7 @@ class TopologySynthesizer:
     def bifurcation_count(self):
         """Return the total bifurcation count over all roots."""
         return sum(
-            root.bifurcation_count()
+            root.bifurcation_count
             for root in self.roots
         )
 
@@ -318,16 +318,16 @@ class TopologySynthesizer:
         """Print synthesized and experimental topology statistics."""
         synthesized_primary_count = len(self.roots)
 
-        if self.primary_count_range is None:
+        if self.primary_count_range_constraint is None:
             experimental_primary_count = "N/A"
         else:
             experimental_primary_count = (
-                f"{self.primary_count_range['min']:.1f}–"
-                f"{self.primary_count_range['max']:.1f}"
+                f"{self.primary_count_range_constraint['min']:.1f}–"
+                f"{self.primary_count_range_constraint['max']:.1f}"
             )
 
         print(
-            "Initial primary dendrites: "
+            "Initial primary dendrites:\t"
             f"synthesized={synthesized_primary_count:.1f}, "
             f"experimental={experimental_primary_count}"
         )
@@ -340,12 +340,12 @@ class TopologySynthesizer:
             experimental_bifurcation_count = "N/A"
         else:
             experimental_bifurcation_count = (
-                f"{self.bifurcation_count['mean']:.1f} ± "
-                f"{self.bifurcation_count['std']:.1f}"
+                f"{self.bifurcation_count_constraint['mean']:.1f} ± "
+                f"{self.bifurcation_count_constraint['std']:.1f}"
             )
 
         print(
-            "Bifurcation count: "
+            "Bifurcation count:\t\t"
             f"synthesized={synthesized_bifurcation_count:.1f}, "
             f"experimental={experimental_bifurcation_count}"
         )
@@ -380,10 +380,10 @@ class TopologySynthesizer:
             ) * self.bin_size,
         )
 
-        print("Sholl plot:")
+        print("\nSholl plot:")
         print(
-            "radius  synthesized  "
-            "experimental mean  experimental std"
+            "radius\tsynthesized\t"
+            "experimental mean\texperimental std"
         )
 
         for index, (
@@ -399,8 +399,8 @@ class TopologySynthesizer:
         ):
             print(
                 f"{index * self.bin_size:.1f}  "
-                f"{synthesized:.1f}  "
-                f"{mean:.1f}  "
-                f"{std:.1f}"
+                f"\t{synthesized:.1f}  "
+                f"\t\t{mean:.1f}  "
+                f"\t\t\t{std:.1f}"
             )
 

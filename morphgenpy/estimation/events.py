@@ -345,6 +345,8 @@ def event_rates(
   
     # Solve
     solver = SolverFactory('ipopt')
+    solver.options["print_level"] = 0
+    solver.options["sb"] = "yes"
     solver.solve(model, tee=False, report_timing=False)
     
     # Extract bifurcation rates as array

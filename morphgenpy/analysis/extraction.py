@@ -39,6 +39,7 @@ def extract_statistics(morphologies, bin_size):
 
         records.append((total_sholl, total_bif, total_ann, total_internal))
         primary_counts.append(int(total_sholl[0]))
+        print(total_sholl[0])
         total_lengths.append(sum(root.total_length for root in roots))
 
     sholl_size = max(len(record[0]) for record in records)

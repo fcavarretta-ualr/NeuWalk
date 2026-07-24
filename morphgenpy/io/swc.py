@@ -1,6 +1,6 @@
 import numpy as np
 
-from ..core.neurite import Neurite
+from ..core.neurite import Neurite, Neuron
 
 
 TYPE_LABELS = {
@@ -306,8 +306,7 @@ def read_swc(filename):
 
         return section
 
-    roots = [build_section(root_id) for root_id in root_ids]
-    return roots
+    return Neuron([build_section(root_id) for root_id in root_ids])
 
 
 
