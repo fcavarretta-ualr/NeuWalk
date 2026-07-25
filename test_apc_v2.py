@@ -17,6 +17,7 @@ from morphgenpy.misc import Random
 
 import morphgenpy.misc as misc
 
+import json
 
 def merge_profiles(profile_roots):
     # for non oblique, roots are attached to the soma          
@@ -47,7 +48,7 @@ def main():
       }
 
     # stat contains the statistics
-
+    all_params = {}
     profiles = {}
     for section_type, delete_section_types in discarded_sections.items():
       print(f"Elaboration of {section_type}")
@@ -62,6 +63,8 @@ def main():
       params.pop("total_length", None)
       params.pop("bifurcation_internal_density", None)
 
+      all_params[section_type] = params.copy()
+      all_params[section_type]['bin_size'] = args.bin_size
       
       print(f"\tGenerating Branching-and-annihilating profile...", end="")
       topol_synthesizer = TopologySynthesizer(
@@ -85,7 +88,11 @@ def main():
       print("---------------------------------------------------------")
       topol_synthesizer.describe()
       print("---------------------------------------------------------\n\n")
-
+      
+    with open("parameters.json", "w") as file:
+      json.dump(all_params, file, indent=4, default=lambda value: value.tolist())
+    quit()
+    
     # synthesize apical dendritic tree
     elongation_random_weight = 1
     max_angle = np.pi / 2

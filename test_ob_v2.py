@@ -17,6 +17,7 @@ from morphgenpy.misc import Random
 
 import morphgenpy.misc as misc
 
+import json
 
 def merge_profiles(profile_roots):
     # for non oblique, roots are attached to the soma          
@@ -107,8 +108,7 @@ def main():
     parser.add_argument("--cell-type", type=str, default="MITRAL")
     args = parser.parse_args()
 
-    radii = np.array([2000, 1250, 1250], dtype=float)
-    epl_depth = 300
+
     
     if args.cell_type == "MITRAL":
         soma_layer = radii - epl_depth
@@ -143,7 +143,7 @@ def main():
       }
 
     # stat contains the statistics
-
+    all_params = {}
     profiles = {}
     for section_type, delete_section_types in discarded_sections.items():
       print(f"Elaboration of {section_type}")
@@ -157,8 +157,15 @@ def main():
       # these params are not used for generation
       params.pop("total_length", None)
       params.pop("bifurcation_internal_density", None)
-
       
+      all_params[section_type] = params.copy()
+      all_params[section_type]['bin_size'] = args.bin_size
+      
+      with open("parameters.json", "w") as file:
+          json.dump(params, file, indent=4, default=lambda value: value.tolist())
+
+      quit()
+              
       print(f"\tGenerating Branching-and-annihilating profile...", end="")
       topol_synthesizer = TopologySynthesizer(
             Random(args.seed),
@@ -185,9 +192,11 @@ def main():
     # synthesize apical dendritic tree
 
 
+    all_params.pop("apical_dendrite", None)    
     
-    
-   
+    with open("parameters.json", "w") as file:
+      json.dump(all_params, file, indent=4, default=lambda value: value.tolist())
+    quit()   
 
     # create self-avoidance bias
     r1 = biases.get_elongation("sibling_repulsion", 25.0, -2) #, space="ellipsoid", radii=radii)
