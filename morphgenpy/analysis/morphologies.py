@@ -201,10 +201,10 @@ def _normalize_section_types(section_types):
     return section_types
 
     
-def load_morphologies(directory, delete_section_types="unknown"):
+def load_morphologies(directory, delete_section_types="unknown", return_file_names=False):
     """Load and process morphologies from all SWC files in a directory."""
     
-    files = sorted(Path(directory).glob("*.swc"))
+    files = sorted(Path(directory).rglob("*.swc"))
 
     if not files:
         raise ValueError(f"No SWC files found in {directory}.")
@@ -222,6 +222,6 @@ def load_morphologies(directory, delete_section_types="unknown"):
         
         # append morphology
         if m:
-            morphologies.append(Neuron(m))
+            morphologies.append((filename, Neuron(m)) if return_file_names else Neuron(m))
 
     return morphologies

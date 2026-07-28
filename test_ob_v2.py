@@ -110,31 +110,31 @@ def main():
 
 
     
-    if args.cell_type == "MITRAL":
-        soma_layer = radii - epl_depth
-        primary_theta = np.pi / 6
-        spatial_bias = biases.get_elongation("ellipsoid_boundary", radii, epl_depth / 2, -1, orientation='in') + \
-                       biases.get_elongation("ellipsoid_boundary", soma_layer, 75., -1, orientation='out')
-    elif args.cell_type == "TUFTED":
-        soma_layer = radii - epl_depth / 2
-        primary_theta = np.pi / 2
-        spatial_bias = biases.get_elongation("ellipsoid_boundary", radii, 1.0, -1, orientation='in') + \
-                       biases.get_elongation("ellipsoid_boundary", soma_layer, 50., -1, orientation='out')
-    else:
-        raise ValueError("Unknown cell type.")
-
-    
-
-    soma_position = misc.EllipsoidalCoordinates.to_cartesian((1 + 25 / 300.0, args.theta, args.phi), soma_layer)
-    glom_position = misc.EllipsoidalCoordinates.to_cartesian((1 + 25 / 300.0, args.theta, args.phi), radii)
-    axis_direction = misc._normalize(misc.EllipsoidalCoordinates.to_cartesian((1, args.theta, args.phi), radii))
-
-    print(f"soma_position={soma_position},\tglom_position={glom_position}")
-    
-    elongation_random_weight = 1
-    max_angle = np.pi / 2
-    
-    soma = generate_apical(args.seed, args.step_size, soma_position, glom_position, axis_direction, elongation_random_weight, max_angle)
+##    if args.cell_type == "MITRAL":
+##        soma_layer = radii - epl_depth
+##        primary_theta = np.pi / 6
+##        spatial_bias = biases.get_elongation("ellipsoid_boundary", radii, epl_depth / 2, -1, orientation='in') + \
+##                       biases.get_elongation("ellipsoid_boundary", soma_layer, 75., -1, orientation='out')
+##    elif args.cell_type == "TUFTED":
+##        soma_layer = radii - epl_depth / 2
+##        primary_theta = np.pi / 2
+##        spatial_bias = biases.get_elongation("ellipsoid_boundary", radii, 1.0, -1, orientation='in') + \
+##                       biases.get_elongation("ellipsoid_boundary", soma_layer, 50., -1, orientation='out')
+##    else:
+##        raise ValueError("Unknown cell type.")
+##
+##    
+##
+##    soma_position = misc.EllipsoidalCoordinates.to_cartesian((1 + 25 / 300.0, args.theta, args.phi), soma_layer)
+##    glom_position = misc.EllipsoidalCoordinates.to_cartesian((1 + 25 / 300.0, args.theta, args.phi), radii)
+##    axis_direction = misc._normalize(misc.EllipsoidalCoordinates.to_cartesian((1, args.theta, args.phi), radii))
+##
+##    print(f"soma_position={soma_position},\tglom_position={glom_position}")
+##    
+##    elongation_random_weight = 1
+##    max_angle = np.pi / 2
+##    
+##    soma = generate_apical(args.seed, args.step_size, soma_position, glom_position, axis_direction, elongation_random_weight, max_angle)
     
     # extract statistics for basal, apical, and oblique dendrites
     # param contains the sections to be discarded

@@ -33,18 +33,17 @@ def main():
 
     if args.color_sections:
         section_colors = {
-            1: "black",   # soma
-            2: "red",     # axon
-            3: "blue",    # basal dendrite
-            4: "green",   # apical dendrite
+            "soma": "black",   # soma
+            "axon": "red",     # axon
+            "basal_dendrite": "blue",    # basal dendrite
+            "apical_dendrite": "green",   # apical dendrite
         }
-
-    for root in roots:
-        plot_morphology(
-            root,
-            section_colors=section_colors,
-            show=False,
-        )
+        
+    plot_morphology(
+        roots,
+        section_colors=section_colors,
+        show=False,
+    )
 
     import matplotlib.pyplot as plt
     plt.show()
