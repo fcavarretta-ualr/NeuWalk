@@ -1,6 +1,6 @@
 import argparse
 
-from morphogenpy.statistics.morphologies import load_morphologies
+from neuwalk.analysis.morphologies import load_morphologies
 
 
 def iter_sections(section):

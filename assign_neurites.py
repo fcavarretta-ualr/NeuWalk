@@ -1,6 +1,6 @@
 import warnings
 import numpy as np
-from morphgenpy import misc
+from neuwalk import misc
 
 
 def _get_candidates(targets, density, bin_size):

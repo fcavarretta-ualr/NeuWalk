@@ -3,8 +3,8 @@
 import argparse
 from pathlib import Path
 
-from morphgenpy.io import read_swc
-from morphgenpy.visualization import plot_morphology
+from neuwalk.io import read_swc
+from neuwalk.visualization import plot_morphology
 
 
 def main():

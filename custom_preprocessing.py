@@ -1,4 +1,4 @@
-import morphgenpy.misc as misc
+import neuwalk.misc as misc
 import numpy as np
 
 def translate_subtree(section, target=None):
@@ -62,7 +62,7 @@ def preprocess_morphology(morphology):
 if __name__ == '__main__':
   import sys
 
-  from morphgenpy.analysis.morphologies import load_morphologies
+  from neuwalk.analysis.morphologies import load_morphologies
 
   morphologies = load_morphologies(sys.argv[-1])
 

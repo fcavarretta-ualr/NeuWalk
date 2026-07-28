@@ -1,5 +1,5 @@
 import argparse
-from morphgenpy.io.swc import read_swc, write_swc
+from neuwalk.io.swc import read_swc, write_swc
 import numpy as np
 
 def main(tolerance=5):

@@ -3,7 +3,7 @@
 import argparse
 from collections import defaultdict
 
-from morphgenpy.io.swc import read_swc
+from neuwalk.io.swc import read_swc
 
 
 

@@ -1,6 +1,6 @@
-from morphgenpy.analysis import morphologies
-from morphgenpy.io import swc
-import morphgenpy.visualization as vis
+from neuwalk.analysis import morphologies
+from neuwalk.io import swc
+import neuwalk.visualization as vis
 
 import sys
 

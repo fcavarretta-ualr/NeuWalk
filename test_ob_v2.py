@@ -5,17 +5,17 @@ from pathlib import Path
 
 import numpy as np
 
-from morphgenpy.io import read_swc
-from morphgenpy.profiles import NeuriteProfile, connect_internal_branches
-from morphgenpy.sampling import EventSampler
-from morphgenpy.synthesis import TopologySynthesizer, MorphologySynthesizer
-from morphgenpy.visualization import plot_morphology
-import morphgenpy.biases as biases
-from morphgenpy.analysis.morphologies import load_morphologies
-from morphgenpy.analysis.extraction import extract_statistics
-from morphgenpy.misc import Random
+from neuwalk.io import read_swc
+from neuwalk.profiles import NeuriteProfile, connect_internal_branches
+from neuwalk.sampling import EventSampler
+from neuwalk.synthesis import TopologySynthesizer, MorphologySynthesizer
+from neuwalk.visualization import plot_morphology
+import neuwalk.biases as biases
+from neuwalk.analysis.morphologies import load_morphologies
+from neuwalk.analysis.extraction import extract_statistics
+from neuwalk.misc import Random
 
-import morphgenpy.misc as misc
+import neuwalk.misc as misc
 
 import json
 

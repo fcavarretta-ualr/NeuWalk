@@ -1,4 +1,4 @@
-from morphgenpy import misc
+from neuwalk import misc
 import numpy as np
 
 def _project(point, direction, shape, **kwargs):

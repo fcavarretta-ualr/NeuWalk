@@ -6,7 +6,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-from morphgenpy.io import read_swc
+from neuwalk.io import read_swc
 
 
 def iter_sections(roots, section_types=None):

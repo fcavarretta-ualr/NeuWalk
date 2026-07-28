@@ -5,7 +5,7 @@ import argparse
 import matplotlib.pyplot as plt
 import numpy as np
 
-from morphgenpy.core.randomwalk import RandomWalk
+from neuwalk.core.randomwalk import RandomWalk
 
 
 def elongate(walk, steps):

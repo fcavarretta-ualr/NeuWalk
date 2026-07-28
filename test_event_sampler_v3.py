@@ -5,9 +5,9 @@ from pathlib import Path
 
 import numpy as np
 
-from morphgenpy.io import read_swc
-from morphgenpy.profiles import NeuriteProfile
-from morphgenpy.sampling import EventSampler
+from neuwalk.io import read_swc
+from neuwalk.profiles import NeuriteProfile
+from neuwalk.sampling import EventSampler
 
 
 def _pad(array, size):

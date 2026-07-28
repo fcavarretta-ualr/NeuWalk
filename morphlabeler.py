@@ -26,9 +26,9 @@ from matplotlib.widgets import Button, RadioButtons
 from mpl_toolkits.mplot3d import proj3d
 
 try:
-    from morphgenpy.io.swc import TYPE_LABELS, load_swc, write_swc
+    from neuwalk.io.swc import TYPE_LABELS, load_swc, write_swc
 except ImportError:
-    from morphgenpy.io.swc import TYPE_LABELS, read_swc as load_swc, write_swc
+    from neuwalk.io.swc import TYPE_LABELS, read_swc as load_swc, write_swc
 
 
 VERSION = "3.0"
