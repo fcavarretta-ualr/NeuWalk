@@ -65,7 +65,7 @@ def truncated_cone_boundary(
     
 
     #print(direction, reference_dendrite.current_point, dest_point)
-    return misc.vector_normalize(direction) * factor
+    return misc.to_unit_vector(direction) * factor
 
 
 

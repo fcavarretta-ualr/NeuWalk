@@ -20,7 +20,7 @@ def _project(point, direction, shape, **kwargs):
     e1 = misc.AxialFrame.to_global(np.array([1., 0., 0.]), normal_direction)
     e2 = misc.AxialFrame.to_global(np.array([0., 1., 0.]), normal_direction)
 
-    return misc._normalize(np.dot(direction, e1) * e1 + np.dot(direction, e2) * e2)
+    return misc.to_unit_vector(np.dot(direction, e1) * e1 + np.dot(direction, e2) * e2)
 
 def _project_ellipsoid(point, radii, direction, center=None):
   return _project(

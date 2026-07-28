@@ -111,14 +111,14 @@ def slerp(u, v, t):
     if not 0.0 <= t <= 1.0:
         raise ValueError("t must be between 0 and 1.")
 
-    u = _normalize(u)
-    v = _normalize(v)
+    u = to_unit_vector(u)
+    v = to_unit_vector(v)
 
     dot = np.clip(np.dot(u, v), -1.0, 1.0)
 
     # Nearly parallel vectors.
     if np.isclose(dot, 1.0):
-        return _normalize(
+        return to_unit_vector(
             (1.0 - t) * u + t * v
         )
 
@@ -126,7 +126,7 @@ def slerp(u, v, t):
     if np.isclose(dot, -1.0):
         orthogonal = _orthogonal_unit_vector(u)
 
-        return _normalize(
+        return to_unit_vector(
             np.cos(np.pi * t) * u
             + np.sin(np.pi * t) * orthogonal
         )
@@ -139,10 +139,10 @@ def slerp(u, v, t):
         + np.sin(t * theta) / sin_theta * v
     )
 
-    return _normalize(result)
+    return to_unit_vector(result)
 
 
-def _normalize(vector):
+def to_unit_vector(vector):
     """Return a normalized 3D vector."""
     vector = np.asarray(vector, dtype=float)
 
@@ -164,7 +164,7 @@ def _orthogonal_unit_vector(vector):
     axis = np.zeros(3)
     axis[np.argmin(np.abs(vector))] = 1.0
 
-    return _normalize(
+    return to_unit_vector(
         np.cross(vector, axis)
     )
 
@@ -941,7 +941,7 @@ class EllipsoidalCoordinates:
         if np.isclose(np.linalg.norm(normal_direction), 0.0):
             raise ValueError("The ellipsoid normal is undefined at the center.")
 
-        return _normalize(normal_direction)
+        return to_unit_vector(normal_direction)
 
     @staticmethod
     def _prepare_radii(radii, dimension):
@@ -1187,4 +1187,3 @@ class EllipsoidalCoordinates:
         return center + radii * normalized
 
 
-vector_normalize = _normalize

@@ -127,7 +127,7 @@ def main():
 
     soma_position = misc.EllipsoidalCoordinates.to_cartesian((1 + 25 / 300.0, args.theta, args.phi), soma_layer)
     glom_position = misc.EllipsoidalCoordinates.to_cartesian((1 + 25 / 300.0, args.theta, args.phi), radii)
-    axis_direction = misc._normalize(misc.EllipsoidalCoordinates.to_cartesian((1, args.theta, args.phi), radii))
+    axis_direction = misc.to_unit_vector(misc.EllipsoidalCoordinates.to_cartesian((1, args.theta, args.phi), radii))
 
     print(f"soma_position={soma_position},\tglom_position={glom_position}")
     

@@ -122,7 +122,7 @@ def generate(seed, cell_type, **kwargs):
     # calculate soma and glomerulus location
     soma_position = misc.EllipsoidalCoordinates.to_cartesian((1 + 25 / 300.0, theta, phi), soma_layer)
     glom_position = misc.EllipsoidalCoordinates.to_cartesian((1 + 25 / 300.0, theta, phi), radii)
-    axis_direction = misc._normalize(misc.EllipsoidalCoordinates.to_cartesian((1, theta, phi), radii))
+    axis_direction = misc.to_unit_vector(misc.EllipsoidalCoordinates.to_cartesian((1, theta, phi), radii))
 
     
     # density of oblique branch points

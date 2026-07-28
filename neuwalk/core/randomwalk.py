@@ -59,7 +59,7 @@ class RandomWalk(Neurite):
         super().__init__(points=[first_point], section_type=section_type, parent=parent)
 
         if initial_direction is not None:
-            initial_direction = misc.vector_normalize(self._validate_vector(initial_direction, "initial_direction"))
+            initial_direction = misc.to_unit_vector(self._validate_vector(initial_direction, "initial_direction"))
 
         self._elongation_bias = None
         self._bifurcation_bias = None
@@ -185,7 +185,7 @@ class RandomWalk(Neurite):
     def last_direction(self):
         """Return the latest accepted unit direction."""
         if len(self.points) >= 2:
-            return misc.vector_normalize(self.points[-1] - self.points[-2])
+            return misc.to_unit_vector(self.points[-1] - self.points[-2])
 
         return self.initial_direction.copy()
 
@@ -199,14 +199,14 @@ class RandomWalk(Neurite):
         if np.isclose(np.linalg.norm(displacement), 0.0):
             return self.initial_direction.copy()
 
-        return misc.vector_normalize(displacement)
+        return misc.to_unit_vector(displacement)
 
     def _step_size(self, direction):
         """Return the step length accounting for the centrifugal component."""
         if not self.centrifugal:
             return self.step_size
 
-        direction = misc.vector_normalize(direction)
+        direction = misc.to_unit_vector(direction)
         alignment = np.dot(direction, self._centrifugal_direction())
 
 ##        if alignment <= 0:
@@ -216,7 +216,7 @@ class RandomWalk(Neurite):
 
     def _generate_point(self, direction):
         """Generate a proposed point."""
-        direction = misc.vector_normalize(direction)
+        direction = misc.to_unit_vector(direction)
         return self.current_point + self._step_size(direction) * direction
 
     def _sample_direction(self, reference_direction):
@@ -248,7 +248,7 @@ class RandomWalk(Neurite):
                 if not np.all(np.isfinite(value)):
                     raise ValueError("elongation_bias.compute() must return only finite values.")
 
-                direction = misc.vector_normalize(
+                direction = misc.to_unit_vector(
                     direction + value * weight * self.elongation_bias_weight * step_size
                 )
 
@@ -263,7 +263,7 @@ class RandomWalk(Neurite):
         )
 
         random_component = self._sample_direction(direction) * hill_value
-        direction = misc.vector_normalize(direction + random_component * self.elongation_random_weight)
+        direction = misc.to_unit_vector(direction + random_component * self.elongation_random_weight)
 
         # check for centrifugal component
         # if it is null, then correct the direction

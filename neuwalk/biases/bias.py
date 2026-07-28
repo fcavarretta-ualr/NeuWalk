@@ -71,8 +71,8 @@ class ElongationBias:
 ##            if bias_direction is None:
 ##                continue
 ##
-##            #direction = misc._normalize(direction * random_walk._step_size(direction) + bias_direction * assigned_weight)
-##            direction = misc._normalize(direction * random_walk._step_size(direction) + bias_direction * assigned_weight)
+##            #direction = misc.to_unit_vector(direction * random_walk._step_size(direction) + bias_direction * assigned_weight)
+##            direction = misc.to_unit_vector(direction * random_walk._step_size(direction) + bias_direction * assigned_weight)
 ##
 ##        return direction
 

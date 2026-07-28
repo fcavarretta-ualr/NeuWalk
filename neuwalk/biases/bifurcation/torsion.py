@@ -9,9 +9,9 @@ def _torsion_bias(rng, neurite, angle, repulsion):
     tmp = np.cross(last_direction, repulsion)
 
     if np.isfinite(tmp).all() and not np.isclose(np.linalg.norm(tmp), 0):
-      lateral_direction = misc.vector_normalize(tmp)
-      return misc.vector_normalize(last_direction - np.tan(angle) * lateral_direction), \
-             misc.vector_normalize(last_direction + np.tan(angle) * lateral_direction)    
+      lateral_direction = misc.to_unit_vector(tmp)
+      return misc.to_unit_vector(last_direction - np.tan(angle) * lateral_direction), \
+             misc.to_unit_vector(last_direction + np.tan(angle) * lateral_direction)    
 
     return None
 
@@ -20,7 +20,7 @@ def radial_torsion_bias(rng, neurite, angle):
     repulsion = elongation.all_dendrites_repulsion(rng, neurite, neurite.last_direction, None, None)
 
     if repulsion is not None:
-      directions = _torsion_bias(rng, neurite, angle, misc.vector_normalize(repulsion))
+      directions = _torsion_bias(rng, neurite, angle, misc.to_unit_vector(repulsion))
       if directions:
         return directions
 
