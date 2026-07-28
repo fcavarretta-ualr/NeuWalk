@@ -112,14 +112,6 @@ def to_unit_vector(vector):
     return vector / norm
 
 
-def _orthogonal_unit_vector(vector):
-    """Return a deterministic unit vector orthogonal to a 3D vector."""
-    axis = np.zeros(3)
-    axis[np.argmin(np.abs(vector))] = 1.0
-
-    return to_unit_vector(
-        np.cross(vector, axis)
-    )
 
 
 
