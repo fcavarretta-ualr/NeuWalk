@@ -92,54 +92,7 @@ class Random:
         )
         return clone
 
-def slerp(u, v, t):
-    """
-    Interpolate between two directions on the unit sphere.
 
-    Parameters
-    ----------
-    u, v : array-like
-        Input 3D directions.
-    t : float
-        Interpolation parameter between 0 and 1.
-
-    Returns
-    -------
-    numpy.ndarray
-        Interpolated unit direction.
-    """
-    if not 0.0 <= t <= 1.0:
-        raise ValueError("t must be between 0 and 1.")
-
-    u = to_unit_vector(u)
-    v = to_unit_vector(v)
-
-    dot = np.clip(np.dot(u, v), -1.0, 1.0)
-
-    # Nearly parallel vectors.
-    if np.isclose(dot, 1.0):
-        return to_unit_vector(
-            (1.0 - t) * u + t * v
-        )
-
-    # Opposite vectors do not define a unique shortest spherical path.
-    if np.isclose(dot, -1.0):
-        orthogonal = _orthogonal_unit_vector(u)
-
-        return to_unit_vector(
-            np.cos(np.pi * t) * u
-            + np.sin(np.pi * t) * orthogonal
-        )
-
-    theta = np.arccos(dot)
-    sin_theta = np.sin(theta)
-
-    result = (
-        np.sin((1.0 - t) * theta) / sin_theta * u
-        + np.sin(t * theta) / sin_theta * v
-    )
-
-    return to_unit_vector(result)
 
 
 def to_unit_vector(vector):
