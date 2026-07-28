@@ -11,16 +11,6 @@ def main():
 
     roots = read_swc(args.swc_file)
     
-##    for r in roots.copy():
-##        for s in r.subtree:
-##            if s.parent:
-##                s.points = s.points[1:]
-##                
-##    for r in roots.copy():
-##      for s in r.subtree:
-##          if s.section_type == "basal_dendrite" and s.parent and s.parent.section_type not in ["soma", "basal_dendrite"]:
-##              s.disconnect()
-##              roots.append(s)
 
 
             
@@ -33,10 +23,6 @@ def main():
         if not s.parent and s not in roots:
           roots.append(s)
           
-##    for r in roots.copy():
-##      for s in r.subtree:
-##          if s.parent:
-##              s.points.insert(0, s.parent.points[-1])
               
     write_swc(args.swc_file, roots)
 

@@ -228,13 +228,6 @@ def event_rates(
     corresponding per-step event probabilities remain valid for the supplied
     ``step_size``.
     """
-##    Solves a QP problem using Pyomo with vector-style variable indexing.
-##
-##    Minimize: 0.5*x[0]^2 + x[1]^2 + x[0]*x[1] + 3*x[0]
-##    Subject to: x[0] + x[1] >= 1, x[i] >= 0
-##
-##    Returns:
-##        np.ndarray: [x[0], x[1], objective_value]
 
     global _Bif_Var_Penalty
 
@@ -266,9 +259,6 @@ def event_rates(
 
     # calculate the gamma
     gamma = np.log(Z[1:] / Z[:-1]) / bin_size
-##    tmp = -2 / gamma
-##    tmp = tmp[tmp > 0]
-##    print(min(tmp))
     # Initial value for b: copy gamma, clamp negatives to 0, then map index -> value
     init_b = dict(enumerate(gamma.clip(min=0).copy()))
 

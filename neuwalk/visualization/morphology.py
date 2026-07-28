@@ -56,14 +56,6 @@ def plot_morphology(
                 "black",
             )
 
-##            if section.parent is not None and len(section.parent.points):
-##                parent_endpoint = np.asarray(
-##                    section.parent.points[-1],
-##                    dtype=float,
-##                )
-##
-##                if not np.allclose(parent_endpoint, points[0]):
-##                    points = np.vstack((parent_endpoint, points))
 
             ax.plot(
                 points[:, 0],

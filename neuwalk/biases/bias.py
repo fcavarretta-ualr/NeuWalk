@@ -52,29 +52,6 @@ class ElongationBias:
 
     __rmul__ = __mul__
 
-##class SequentialElongationBias:
-##    """Apply elongation biases sequentially."""
-##
-##    def __init__(self, biases=None):
-##        self._biases = list(biases or [])
-##
-##    def append(self, bias, weight=1.0):
-##        self._biases.append((float(weight), bias))
-##        return self
-##
-##    def compute(self, random_walk, reference_direction):
-##        direction = np.asarray(reference_direction, dtype=float)
-##
-##        for assigned_weight, bias in self._biases:
-##            bias_direction = bias.compute(random_walk, direction)
-##
-##            if bias_direction is None:
-##                continue
-##
-##            #direction = misc.to_unit_vector(direction * random_walk._step_size(direction) + bias_direction * assigned_weight)
-##            direction = misc.to_unit_vector(direction * random_walk._step_size(direction) + bias_direction * assigned_weight)
-##
-##        return direction
 
 class BifurcationBias:
     """Simple bifurcation bias wrapper."""

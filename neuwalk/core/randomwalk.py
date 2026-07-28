@@ -191,8 +191,6 @@ class RandomWalk(Neurite):
 
     def _centrifugal_direction(self):
         """Return the outward unit direction from the origin."""
-##        if not self.centrifugal:
-##            raise RuntimeError("The centrifugal direction is unavailable when centrifugal=False.")
 
         displacement = self.current_point - self.origin
 
@@ -209,8 +207,6 @@ class RandomWalk(Neurite):
         direction = misc.to_unit_vector(direction)
         alignment = np.dot(direction, self._centrifugal_direction())
 
-##        if alignment <= 0:
-##            raise ValueError("direction must have a sufficiently positive centrifugal component.")
 
         return min(self.step_size / alignment, self.max_step_size)
 
