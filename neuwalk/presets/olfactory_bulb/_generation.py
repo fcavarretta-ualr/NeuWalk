@@ -36,8 +36,6 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
         elongation_bias=biases.get_elongation("attraction", None, None, glom_position)
     )
 
-    # synthesize apical dendrites
-    soma = apical_synthesizer.synthesize()
 
     # synthesize the tuft dendrites
     topol_synthesizer = TopologySynthesizer(
@@ -63,12 +61,13 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
         phi=0,
         origin=apical_synthesizer.soma.children[0].points[-1],
         axis_direction=axis_direction,
-        elongation_bias=biases.get_elongation("ellipsoid_boundary", np.zeros(3, dtype=float) + 50.0, 1, -1, orientation='in', center=center)
+        elongation_bias=biases.get_elongation("ellipsoid_boundary", np.zeros(3, dtype=float) + 50.0, 1, -1, orientation='in', center=center),
+        parent=apical_synthesizer.soma.children[0]
     )
 
-    
+    tuft_synthesizer.synthesize()
 
-    return soma
+    return apical_synthesizer.soma.children[0]
 
     
 def generate(seed, cell_type, **kwargs):
@@ -102,7 +101,6 @@ def generate(seed, cell_type, **kwargs):
     
     max_steps = kwargs.get("max_steps", 100)
     
-    seed = kwargs.get("seed", 1234)
     verbose = kwargs.get("verbose", False)
     n_std = kwargs.get("n_std", 1.0)
     max_attempts_per_window = kwargs.get("max_attempts_per_window", 10)

@@ -35,6 +35,7 @@ class MorphologySynthesizer:
         max_angle=np.pi / 2,
         elongation_random_weight=1.0,
         elongation_bias_weight=1.0,
+        parent=None,
     ):
         """
         Initialize the morphology synthesizer.
@@ -70,6 +71,16 @@ class MorphologySynthesizer:
             Weight of the random elongation component.
         elongation_bias_weight : float, default 1.0
             Global weight applied to elongation biases.
+        parent : Neurite, optional
+            Existing neurite that the primary dendrites will be connected
+            to directly, as independent roots. This is unrelated to
+            ``soma``: no soma is created, and the primary dendrites are
+            exposed through ``self.roots`` instead. As an extra check, if
+            ``parent.root`` turns out to already be a soma section,
+            ``self.soma`` is set to it. If ``parent`` is not given
+            (default), the original soma-based behavior applies: a soma
+            is created (or reused via ``synthesize(soma=...)``) and the
+            primary dendrites are attached to it.
         """
         # in this case we have multiple roots,
         # that are accepted only if merged into a soma
@@ -97,6 +108,9 @@ class MorphologySynthesizer:
             if np.isclose(np.linalg.norm(axis_direction), 0.0):
                 raise ValueError("axis_direction cannot be the zero vector.")
 
+        if parent is not None and not isinstance(parent, Neurite):
+            raise TypeError("parent must be a Neurite.")
+
         self.topology = topology
         self.rng = rng
         self.origin = origin.copy()
@@ -111,7 +125,13 @@ class MorphologySynthesizer:
         self.elongation_random_weight = elongation_random_weight
         self.elongation_bias_weight = elongation_bias_weight
         self.active_neurites = {}
+        self.parent = parent
         self.soma = None
+        self.roots = [] if parent is not None else None
+        self.initialized = False
+
+        if parent is not None and parent.root.section_type == "soma":
+            self.soma = parent.root
 
     def _resolve_primary_angles(self, primary_count):
         """Resolve theta and phi independently for the primary-dendrite count."""
@@ -190,11 +210,17 @@ class MorphologySynthesizer:
                 raise ValueError("max_steps cannot be negative.")
 
 
-        if self.soma is None:
-            if soma is not None:
-                self.soma = soma
+        if not self.initialized:
+            if self.parent is not None:
+                attachment = self.parent
             else:
-                self.soma = Neurite(points=[self.origin.copy()], section_type="soma")
+                if self.soma is None:
+                    if soma is not None:
+                        self.soma = soma
+                    else:
+                        self.soma = Neurite(points=[self.origin.copy()], section_type="soma")
+
+                attachment = self.soma
 
             if self.topology.section_type == "soma":
                 primary_profiles = list(self.topology.children)
@@ -220,7 +246,7 @@ class MorphologySynthesizer:
                     bifurcation_bias=self.bifurcation_bias,
                     bifurcation_internal_bias=self.bifurcation_internal_bias,
                     centrifugal=self.centrifugal,
-                    parent=self.soma,
+                    parent=attachment,
                     section_type=profile.section_type,
                     max_angle=self.max_angle,
                     elongation_random_weight=self.elongation_random_weight,
@@ -228,8 +254,13 @@ class MorphologySynthesizer:
                 )
                 self.active_neurites.setdefault(profile.order, []).append((profile, walk))
 
+                if self.roots is not None:
+                    self.roots.append(walk)
+
+            self.initialized = True
+
         if not self.active_neurites:
-            return self.soma
+            return self.roots if self.roots is not None else self.soma
 
         current_order = min(self.active_neurites)
 
@@ -243,7 +274,7 @@ class MorphologySynthesizer:
 
         while self.active_neurites[current_order]:
             if max_steps is not None and step >= max_steps:
-                return self.soma
+                return self.roots if self.roots is not None else self.soma
 
             current_neurites = self.active_neurites[current_order]
             self.active_neurites[current_order] = []
@@ -287,7 +318,7 @@ class MorphologySynthesizer:
             step += 1
 
         del self.active_neurites[current_order]
-        return self.soma
+        return self.roots if self.roots is not None else self.soma
 
     def describe(self):
         """Print synthesized and experimental topology statistics."""
