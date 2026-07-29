@@ -95,7 +95,6 @@ def synthesize_progressive(tree, n_std=1.0, max_attempts_per_window=10, max_tota
 
     # Convert one Sholl bin into synthesis steps.
     bin_size = float(tree.event_sampler.bin_size)
-    steps_per_bin = int(np.ceil(bin_size / float(tree.event_sampler.step_size)))
 
     # Record the initial state and accepted state after each bin.
     base_log_count = len(tree.synthesis_logs)
@@ -109,7 +108,7 @@ def synthesize_progressive(tree, n_std=1.0, max_attempts_per_window=10, max_tota
             _log(f"{i * bin_size}\t{round(m - n_std * s, 1)}\t{round(m + n_std * s, 1)}")
         _log("-" * 48)
 
-    _log(f"Starting synthesis for {len(mean)} bins using {steps_per_bin} steps per bin.")
+    _log(f"Starting synthesis for {len(mean)} bins.")
 
     # Accept one Sholl bin at a time.
     for target_bin in range(len(mean)):
@@ -131,7 +130,7 @@ def synthesize_progressive(tree, n_std=1.0, max_attempts_per_window=10, max_tota
                 _rollback(tree, rollback_count, _log)
                 del checkpoints[start_bin:]
 
-                if _regenerate_window(tree, start_bin, target_bin, mean, std, n_std, bin_size, steps_per_bin, checkpoints, _log):
+                if _regenerate_window(tree, start_bin, target_bin, mean, std, n_std, bin_size, checkpoints, _log):
                     _log(f"Bin {target_bin} accepted.")
                     break
             else:
@@ -149,7 +148,7 @@ def synthesize_progressive(tree, n_std=1.0, max_attempts_per_window=10, max_tota
     return tree.soma if getattr(tree, "with_soma", False) else tree.roots
 
 
-def _regenerate_window(tree, start_bin, target_bin, mean, std, n_std, bin_size, steps_per_bin, checkpoints, _log):
+def _regenerate_window(tree, start_bin, target_bin, mean, std, n_std, bin_size, checkpoints, _log):
     """Regenerate and validate all bins in one rollback window.
 
     Note: on failure this does not roll back itself; the caller always rolls
@@ -158,7 +157,7 @@ def _regenerate_window(tree, start_bin, target_bin, mean, std, n_std, bin_size, 
     """
     for bin_index in range(start_bin, target_bin + 1):
         # Bin 0 initializes the primary neurites.
-        tree.synthesize(max_steps=0 if bin_index == 0 else steps_per_bin)
+        tree.synthesize(distance_limit=0 if bin_index == 0 else (bin_size * bin_index))
 
         valid, generated, lower, upper = _sholl_status(tree, bin_index, mean, std, n_std, bin_size)
         status = "accepted" if valid else "rejected"
