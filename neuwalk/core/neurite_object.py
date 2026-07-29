@@ -173,7 +173,7 @@ class NeuriteObject:
 
 
     @staticmethod
-    def _root_and_depth(neurite, consider_root_like=True):
+    def _root_and_depth(neurite, consider_root_like=False):
       depth = 0
 
       while neurite.parent and not (consider_root_like and neurite.is_root_like):
@@ -181,32 +181,21 @@ class NeuriteObject:
         neurite = neurite.parent
 
       return {
-        'parent':neurite,
+        'root':neurite,
         'depth':depth
         }
 
     
     @property
-    def absolute_root(self):
-        """Return the root section of the tree."""
-        return NeuriteObject._root_and_depth(self, False)['parent']
-
-      
-    @property
-    def absolute_depth(self):
-        """Return the number of connections from this section to the root."""
-        return NeuriteObject._root_and_depth(self, False)['depth']
-    
-    @property
     def root(self):
         """Return the root section of the tree."""
-        return NeuriteObject._root_and_depth(self, True)['parent']
+        return NeuriteObject._root_and_depth(self, False)['root']
 
       
     @property
     def depth(self):
         """Return the number of connections from this section to the root."""
-        return NeuriteObject._root_and_depth(self, True)['depth']
+        return NeuriteObject._root_and_depth(self, False)['depth']
 
 
     @staticmethod

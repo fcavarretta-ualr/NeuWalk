@@ -73,7 +73,7 @@ def generate(seed, **kwargs):
                 biases.get_elongation("nonrelated_repulsion", 25.0, -2)
 
     # somatic repulsion
-    somatic_bias = biases.get_elongation("root_repulsion", 750.0, -2)
+    somatic_bias = biases.get_elongation("root_repulsion", 750.0, -2, consider_root_like=True)
 
     # plane boundary, push the distal apical dendrites to bend
     plane_bias = biases.get_elongation("plane_boundary", np.array([0., 0., 900.]), (np.pi, 0.), 10, -2)

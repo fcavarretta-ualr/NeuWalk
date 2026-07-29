@@ -2,6 +2,7 @@ import numpy as np
 from ..bias import BiasRegistry
 from ... import misc
 from . import _projection
+from ...core.neurite import Neurite
 
 def _dendrite_repulsion(reference_dendrite, point, dendrites, K, n):
     directions, distances, lengths = [], [], []
@@ -112,7 +113,7 @@ def all_dendrites_repulsion(rng, random_walk, reference_direction, K, n, **kwarg
 @BiasRegistry.register_elongation("nonrelated_repulsion")
 def nonrelated_repulsion(rng, random_walk, reference_direction, K, n, **kwargs):
     sections = [
-        d for d in random_walk.absolute_root.wholetree
+        d for d in random_walk.root.wholetree
         if d is not random_walk and d.section_type != "soma"
     ]
 
@@ -126,9 +127,9 @@ def nonrelated_repulsion(rng, random_walk, reference_direction, K, n, **kwargs):
 
 
 @BiasRegistry.register_elongation("root_repulsion")
-def root_repulsion_bias(rng, reference_dendrite, reference_direction, K, n, **kwargs):
+def root_repulsion_bias(rng, reference_dendrite, reference_direction, K, n, consider_root_like=False, **kwargs):
     # get the root   
-    root = reference_dendrite.root
+    root = Neurite._root_and_depth(reference_dendrite, consider_root_like=consider_root_like)['root']
     
     if (K is None) != (n is None):
         raise ValueError("K and n must both be provided or both be None.")
