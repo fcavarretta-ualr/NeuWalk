@@ -22,7 +22,7 @@ class MorphologySynthesizer:
 
     def __init__(
         self,
-        root,
+        topology,
         rng,
         origin=None,
         theta=(0.0, np.pi),
@@ -41,7 +41,7 @@ class MorphologySynthesizer:
 
         Parameters
         ----------
-        root : NeuriteProfile
+        topology : NeuriteProfile
             Root of the synthesized topology. It may be either a soma or a
             single primary neurite.
         rng : numpy.random.Generator-like
@@ -73,12 +73,12 @@ class MorphologySynthesizer:
         """
         # in this case we have multiple roots,
         # that are accepted only if merged into a soma
-        if type(root) == list:
-            root = self._merge_profiles(root)
+        if type(topology) == list:
+            topology = self._merge_profiles(topology)
 
             
-        if not isinstance(root, NeuriteProfile):
-            raise TypeError("root must be a NeuriteProfile.")
+        if not isinstance(topology, NeuriteProfile):
+            raise TypeError("topology must be a NeuriteProfile.")
 
         if origin is None:
             origin = np.zeros(3, dtype=float)
@@ -97,7 +97,7 @@ class MorphologySynthesizer:
             if np.isclose(np.linalg.norm(axis_direction), 0.0):
                 raise ValueError("axis_direction cannot be the zero vector.")
 
-        self.root = root
+        self.topology = topology
         self.rng = rng
         self.origin = origin.copy()
         self.theta = theta
@@ -196,10 +196,10 @@ class MorphologySynthesizer:
             else:
                 self.soma = Neurite(points=[self.origin.copy()], section_type="soma")
 
-            if self.root.section_type == "soma":
-                primary_profiles = list(self.root.children)
+            if self.topology.section_type == "soma":
+                primary_profiles = list(self.topology.children)
             else:
-                primary_profiles = [self.root]
+                primary_profiles = [self.topology]
 
             theta, phi = self._resolve_primary_angles(len(primary_profiles))
             primary_directions = misc.sphere_surface_points(n=len(primary_profiles), theta=theta, phi=phi)

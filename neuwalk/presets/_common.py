@@ -95,7 +95,7 @@ def synthesize_dendrite_tree(
         The synthesizer, after ``synthesize`` has been called on it.
     """
     synthesizer = MorphologySynthesizer(
-        root=ret[section_type]['topology'].soma,
+        topology=ret[section_type]['topology'].soma,
         rng=misc.Random(seed),
         theta=theta,
         phi=phi,

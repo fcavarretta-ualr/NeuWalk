@@ -27,7 +27,7 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
 
     # initializa the synthesizer for apical dendrites
     apical_synthesizer = MorphologySynthesizer(
-        root=topol_synthesizer.soma,
+        topology=topol_synthesizer.soma,
         rng=misc.Random(seed=seed),
         theta=0,
         phi=0,
@@ -57,7 +57,7 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
 
     # initializa the synthesizer for apical dendrites
     tuft_synthesizer = MorphologySynthesizer(
-        root=topol_synthesizer.roots,
+        topology=topol_synthesizer.roots,
         rng=misc.Random(seed=seed),
         theta=0,
         phi=0,
@@ -153,7 +153,7 @@ def generate(seed, cell_type, **kwargs):
     # initialize the synthesizer for apical dendrites
     basal_synthesizer = MorphologySynthesizer(
         origin=soma_position,
-        root=ret['basal_dendrite']['topology'].soma,
+        topology=ret['basal_dendrite']['topology'].soma,
         rng=misc.Random(seed),
         theta = primary_theta,
         phi=(0., 2 * np.pi),
