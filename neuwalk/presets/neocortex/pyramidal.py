@@ -6,12 +6,7 @@ from ...synthesis import TopologySynthesizer, MorphologySynthesizer
 from ... import biases
 import numpy as np
 
-def merge_profiles(profile_roots):
-    # for non oblique, roots are attached to the soma          
-    profile_soma = NeuriteProfile(1, section_type="soma")
-    for root in profile_roots:
-        root.connect(profile_soma, relation="parent")
-    return profile_soma
+
     
 def generate(seed, **kwargs):
     """Generate and return one neocortical pyramidal neuron."""
@@ -97,7 +92,7 @@ def generate(seed, **kwargs):
 
     # initialize the synthesizer for apical dendrites
     apic_synthesizer = MorphologySynthesizer(
-        root=merge_profiles(ret['apical_dendrite']['topology'].roots),
+        root=ret['apical_dendrite']['topology'].roots,
         rng=misc.Random(seed),
         theta=0,
         phi=0,
@@ -118,7 +113,7 @@ def generate(seed, **kwargs):
     
      
     basal_synthesizer = MorphologySynthesizer(
-        root=merge_profiles(ret['basal_dendrite']['topology'].roots),
+        root=ret['basal_dendrite']['topology'].roots,
         rng=misc.Random(seed),
         theta=(np.pi / 6, np.pi * 5 / 6),
         phi=(0, 2 * np.pi),

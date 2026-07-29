@@ -10,12 +10,6 @@ radii = np.array([2000, 1250, 1250], dtype=float)
 epl_depth = 300
 glom_radius = 50.
 
-def merge_profiles(profile_roots):
-    # for non oblique, roots are attached to the soma          
-    profile_soma = NeuriteProfile(1, section_type="soma")
-    for root in profile_roots:
-        root.connect(profile_soma, relation="parent")
-    return profile_soma
     
 def generate_apical(seed, step_size, soma_position, glom_position, axis_direction):
     topol_synthesizer = TopologySynthesizer(
@@ -32,7 +26,7 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
 
     # initializa the synthesizer for apical dendrites
     apical_synthesizer = MorphologySynthesizer(
-        root=merge_profiles(topol_synthesizer.roots),
+        root=topol_synthesizer.roots,
         rng=misc.Random(seed=seed),
         theta=0,
         phi=0,
@@ -61,7 +55,7 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
 
     # initializa the synthesizer for apical dendrites
     tuft_synthesizer = MorphologySynthesizer(
-        root=merge_profiles(topol_synthesizer.roots),
+        root=topol_synthesizer.roots,
         rng=misc.Random(seed=seed),
         theta=0,
         phi=0,
@@ -176,7 +170,7 @@ def generate(seed, cell_type, **kwargs):
     # initialize the synthesizer for apical dendrites
     basal_synthesizer = MorphologySynthesizer(
         origin=soma_position,
-        root=merge_profiles(ret['basal_dendrite']['topology'].roots),
+        root=ret['basal_dendrite']['topology'].roots,
         rng=misc.Random(seed),
         theta = primary_theta,
         phi=(0., 2 * np.pi),

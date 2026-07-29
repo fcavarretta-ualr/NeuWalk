@@ -9,6 +9,16 @@ from ..core.randomwalk import RandomWalk
 
 class MorphologySynthesizer:
     """Generate RandomWalk trajectories from a NeuriteProfile tree."""
+    def _merge_profiles(profile_roots):
+
+        assert sum(r.section_type != "soma") == len(profile_roots), "Soma should be provided alone rather than inside a list"
+        
+        # for non oblique, roots are attached to the soma          
+        profile_soma = NeuriteProfile(1, section_type="soma")
+        for root in profile_roots:
+            root.connect(profile_soma, relation="parent")
+            
+        return profile_soma
 
     def __init__(
         self,
@@ -61,6 +71,12 @@ class MorphologySynthesizer:
         elongation_bias_weight : float, default 1.0
             Global weight applied to elongation biases.
         """
+        # in this case we have multiple roots,
+        # that are accepted only if merged into a soma
+        if type(root) == list:
+            root = self._merge_profiles(root)
+
+            
         if not isinstance(root, NeuriteProfile):
             raise TypeError("root must be a NeuriteProfile.")
 
