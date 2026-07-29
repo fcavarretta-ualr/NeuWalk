@@ -1,5 +1,5 @@
 import numpy as np
-from ..core.neurite_object import NeuriteObject
+from ..core.neurite_object import NeuriteObject, TYPE_LABELS, TYPE_CODES
 
 
 class NeuriteProfile(NeuriteObject):

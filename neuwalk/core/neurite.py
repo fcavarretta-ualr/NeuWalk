@@ -1,5 +1,5 @@
 import numpy as np
-from .neurite_object import NeuriteObject
+from .neurite_object import NeuriteObject, TYPE_LABELS, TYPE_CODES
 from .. import misc
 
 def is_float_array(value):

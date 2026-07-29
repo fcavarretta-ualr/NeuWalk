@@ -79,7 +79,7 @@ def generate(seed, cell_type, **kwargs):
 
     # initialize the synthesizer for apical dendrites
     apic_synthesizer = MorphologySynthesizer(
-        root=ret['apical_dendrite']['topology'].roots,
+        root=ret['apical_dendrite']['topology'].soma,
         rng=misc.Random(seed),
         theta=0,
         phi=0,
@@ -100,7 +100,7 @@ def generate(seed, cell_type, **kwargs):
       ]    
      
     basal_synthesizer = MorphologySynthesizer(
-        root=ret['basal_dendrite']['topology'].roots,
+        root=ret['basal_dendrite']['topology'].soma,
         rng=misc.Random(seed),
         theta=(0, np.pi / 2),
         phi=(0, 2 * np.pi),

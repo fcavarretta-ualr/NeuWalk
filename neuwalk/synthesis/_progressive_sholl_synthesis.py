@@ -41,7 +41,7 @@ def synthesize_progressive(tree, n_std=1.0, max_attempts_per_window=10, max_tota
         - ``synthesize(max_steps=...)``
         - ``undo_synthesize()``
         - ``sholl_plot(max_distance=...)``
-        - ``roots``
+        - ``roots``, or ``soma`` if ``with_soma`` is True
 
     n_std : float, default=1.0
         Number of standard deviations allowed above and below each target
@@ -62,9 +62,9 @@ def synthesize_progressive(tree, n_std=1.0, max_attempts_per_window=10, max_tota
 
     Returns
     -------
-    list
-        The independently synthesized root neurite profiles stored in
-        ``tree.roots``.
+    NeuriteProfile or list
+        ``tree.soma`` if ``tree.with_soma`` is True, otherwise the
+        synthesized primary roots stored in ``tree.roots``.
 
     Raises
     ------
@@ -146,7 +146,7 @@ def synthesize_progressive(tree, n_std=1.0, max_attempts_per_window=10, max_tota
             break
 
     _log("Progressive synthesis completed successfully.")
-    return tree.roots
+    return tree.soma if getattr(tree, "with_soma", False) else tree.roots
 
 
 def _regenerate_window(tree, start_bin, target_bin, mean, std, n_std, bin_size, steps_per_bin, checkpoints, _log):
@@ -223,8 +223,10 @@ def _validate(tree, n_std, max_attempts_per_window, max_total_attempts):
         raise TypeError("tree must provide sholl_plot(max_distance=...).")
     if getattr(tree, "synthesis_logs", None) is None:
         raise TypeError("tree must provide synthesis_logs.")
-    if not hasattr(tree, "roots"):
-        raise TypeError("tree must provide roots.")
+
+    root_attr = "soma" if getattr(tree, "with_soma", False) else "roots"
+    if not hasattr(tree, root_attr):
+        raise TypeError(f"tree must provide {root_attr}.")
 
     event_sampler = getattr(tree, "event_sampler", None)
     if event_sampler is None:

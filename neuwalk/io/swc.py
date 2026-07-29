@@ -1,23 +1,6 @@
 import numpy as np
 
-from ..core.neurite import Neurite, Neuron
-
-
-TYPE_LABELS = {
-    0: "unknown",
-    1: "soma",
-    2: "axon",
-    3: "basal_dendrite",
-    4: "apical_dendrite",
-    5: "apical_oblique",
-    6: "apical_secondary_dendrite",
-    7: "apical_secondary_oblique",
-}
-
-TYPE_CODES = {
-    label: code
-    for code, label in TYPE_LABELS.items()
-}
+from ..core.neurite import Neurite, Neuron, TYPE_LABELS, TYPE_CODES
 
 
 def read_swc(filename):

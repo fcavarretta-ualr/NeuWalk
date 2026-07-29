@@ -26,7 +26,7 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
 
     # initializa the synthesizer for apical dendrites
     apical_synthesizer = MorphologySynthesizer(
-        root=topol_synthesizer.roots,
+        root=topol_synthesizer.soma,
         rng=misc.Random(seed=seed),
         theta=0,
         phi=0,
@@ -45,7 +45,8 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
         section_type="apical_dendrite",
         sholl_plot={'mean':[5,10,20,40,80,80,40,20,10,5,0], 'std':[0,5,10,20,40,40,20,10,5,2.5,0]},
         bin_size=10,
-        primary_count_range={"min":4, "max":6}
+        primary_count_range={"min":4, "max":6},
+        with_soma=False
     )
 
     topol_synthesizer.synthesize()
@@ -55,7 +56,7 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
 
     # initializa the synthesizer for apical dendrites
     tuft_synthesizer = MorphologySynthesizer(
-        root=topol_synthesizer.roots,
+        root=topol_synthesizer.soma.children[0],
         rng=misc.Random(seed=seed),
         theta=0,
         phi=0,
@@ -64,11 +65,6 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
         elongation_bias=biases.get_elongation("ellipsoid_boundary", np.zeros(3, dtype=float) + 50.0, 1, -1, orientation='in', center=center)
     )
 
-    # synthesize apical dendrites
-    tuft_origin = tuft_synthesizer.synthesize()
-    for ch in tuft_origin.children:
-        ch.disconnect_from_parent()
-        ch.connect(soma, relation="parent")
     return soma
 
     

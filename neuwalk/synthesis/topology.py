@@ -22,6 +22,7 @@ class TopologySynthesizer:
         primary_count_range=None,
         no_bifurcation_bins=None,
         no_annihilation_bins=None,
+        with_soma=True,
     ):
         """
         Initialize the tree profile and its event samplers.
@@ -50,6 +51,14 @@ class TopologySynthesizer:
             Main bins where bifurcation is disabled.
         no_annihilation_bins : array-like, optional
             Main bins where annihilation is disabled.
+        with_soma : bool, default True
+            If ``True``, ``initialize`` creates a soma section and connects
+            every primary root to it as a child; the soma is then exposed
+            through the ``soma`` property and ``roots`` becomes
+            unavailable. If ``False`` (default), the primary roots are
+            created as independent sections with no parent; they are
+            exposed through the ``roots`` property and ``soma`` becomes
+            unavailable.
         """
         if step_size <= 0:
             raise ValueError("step_size must be positive.")
@@ -82,18 +91,63 @@ class TopologySynthesizer:
         )
         self.event_sampler = self.main_event_sampler
 
-        self.roots = []
+        self.with_soma = bool(with_soma)
+        self._roots = []
+        self._soma = None
         self.initialized = False
         self.synthesis_logs = []
+
+    @property
+    def roots(self):
+        """
+        Return the independent primary root sections.
+
+        Raises
+        ------
+        RuntimeError
+            If ``with_soma`` is True. In that case the primary roots are
+            attached to a soma; use ``soma`` instead.
+        """
+        if self.with_soma:
+            raise RuntimeError(
+                "with_soma is enabled: the primary roots are attached to "
+                "a soma. Use `soma` instead of `roots`."
+            )
+
+        return self._roots
+
+    @property
+    def soma(self):
+        """
+        Return the soma section connecting the primary roots.
+
+        Raises
+        ------
+        RuntimeError
+            If ``with_soma`` is False. In that case no soma was created;
+            use ``roots`` instead.
+        """
+        if not self.with_soma:
+            raise RuntimeError(
+                "with_soma is disabled: no soma was created. Use `roots` "
+                "instead of `soma`."
+            )
+
+        return self._soma
 
     def initialize(self):
         """
         Create the primary neurites.
 
+        The primary roots are always created first as independent
+        sections. If ``with_soma`` was set at construction, a soma section
+        is then created and every root is connected to it as a child.
+
         Returns
         -------
-        list of NeuriteProfile
-            Created primary neurites.
+        NeuriteProfile or list of NeuriteProfile
+            The soma if ``with_soma`` is True, otherwise the list of
+            independent primary roots.
         """
         if self.initialized:
             raise RuntimeError(
@@ -102,25 +156,35 @@ class TopologySynthesizer:
 
         primary_count = self.main_event_sampler.sample_primary_neurite_count()
 
-        self.roots = [
+        self._roots = [
             NeuriteProfile(
                 step_size=self.step_size,
                 section_type=self.section_type,
             )
             for _ in range(primary_count)
         ]
+
+        if self.with_soma:
+            self._soma = NeuriteProfile(
+                step_size=self.step_size,
+                section_type="soma",
+            )
+
+            for root in self._roots:
+                root.connect(self._soma, relation="parent")
+
         self.initialized = True
 
-        return self.roots
+        return self.soma if self.with_soma else self.roots
     
     def _iter_sections(self):
-        """Iterate over every section in every root."""
-        for root in self.roots:
+        """Iterate over every section in every primary root."""
+        for root in self._roots:
             yield from root.subtree
 
     def sholl_plot(self, max_distance=None):
-        """Return the sum of the Sholl plots over all roots."""
-        if not self.roots:
+        """Return the sum of the Sholl plots over all primary roots."""
+        if not self._roots:
             return np.zeros(1, dtype=int)
 
         plots = [
@@ -131,7 +195,7 @@ class TopologySynthesizer:
                 ),
                 dtype=int,
             )
-            for root in self.roots
+            for root in self._roots
         ]
 
         size = max(len(plot) for plot in plots)
@@ -143,10 +207,10 @@ class TopologySynthesizer:
         return summed_plot
 
     def bifurcation_count(self):
-        """Return the total bifurcation count over all roots."""
+        """Return the total bifurcation count over all primary roots."""
         return sum(
             root.bifurcation_count
-            for root in self.roots
+            for root in self._roots
         )
 
     def synthesize_progressive(
@@ -172,8 +236,9 @@ class TopologySynthesizer:
 
         Returns
         -------
-        list of NeuriteProfile
-            Synthesized root profiles.
+        NeuriteProfile or list of NeuriteProfile
+            The soma if ``with_soma`` is True, otherwise the list of
+            synthesized primary roots.
         """
         return synthesize_progressive(
             tree=self,
@@ -191,13 +256,26 @@ class TopologySynthesizer:
         ----------
         max_steps : int, optional
             Maximum number of synthesis sweeps. If ``None``, synthesis
-            continues until no active neurites remain.
+            continues until no active neurites remain. Mutually exclusive
+            with ``distance_limit``.
+        distance_limit : float, optional
+            Maximum path distance from the root that a neurite may reach.
+            A neurite stops being advanced once its tip distance
+            (``distance_from_root + length``) exceeds this value.
+            Synthesis stops once every active neurite has exceeded it.
+            Mutually exclusive with ``max_steps``.
 
         Returns
         -------
-        list of NeuriteProfile
-            Synthesized root profiles.
+        NeuriteProfile or list of NeuriteProfile
+            The soma if ``with_soma`` is True, otherwise the list of
+            synthesized primary roots.
         """
+        if max_steps is not None and distance_limit is not None:
+            raise ValueError(
+                "Provide either max_steps or distance_limit, not both."
+            )
+
         if max_steps is not None:
             if not isinstance(max_steps, int):
                 raise TypeError(
@@ -209,10 +287,25 @@ class TopologySynthesizer:
                     "max_steps cannot be negative."
                 )
 
+        if distance_limit is not None:
+            if (
+                not isinstance(distance_limit, (int, float))
+                or isinstance(distance_limit, bool)
+            ):
+                raise TypeError(
+                    "distance_limit must be a number or None."
+                )
+
+            if distance_limit < 0:
+                raise ValueError(
+                    "distance_limit cannot be negative."
+                )
+
         synthesis_log = []
 
         if not self.initialized:
-            active_neurites = self.initialize()
+            self.initialize()
+            active_neurites = list(self._roots)
 
             self.synthesis_logs.append(
                 [
@@ -240,6 +333,13 @@ class TopologySynthesizer:
 
             for neurite in active_neurites:
                 if not neurite.active:
+                    continue
+
+                if (
+                    distance_limit is not None
+                    and neurite.distance_from_root + neurite.length
+                        > distance_limit
+                ):
                     continue
 
                 
@@ -273,7 +373,7 @@ class TopologySynthesizer:
 
         self.synthesis_logs.append(synthesis_log)
 
-        return self.roots
+        return self.soma if self.with_soma else self.roots
 
         
 
@@ -306,7 +406,8 @@ class TopologySynthesizer:
                 neurite.undo_annihilate()
 
             elif event == "initialize":
-                self.roots = []
+                self._roots = []
+                self._soma = None
                 self.initialized = False
 
             else:
@@ -316,7 +417,7 @@ class TopologySynthesizer:
 
     def describe(self):
         """Print synthesized and experimental topology statistics."""
-        synthesized_primary_count = len(self.roots)
+        synthesized_primary_count = len(self._roots)
 
         if self.primary_count_range_constraint is None:
             experimental_primary_count = "N/A"
@@ -403,4 +504,3 @@ class TopologySynthesizer:
                 f"\t\t{mean:.1f}  "
                 f"\t\t\t{std:.1f}"
             )
-

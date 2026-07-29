@@ -41,6 +41,7 @@ def generate(seed, **kwargs):
             misc.Random(seed),
             step_size=step_size,
             section_type=section_type,
+            with_soma=section_type != "apical_oblique",
             **params
         )
 
@@ -59,7 +60,7 @@ def generate(seed, **kwargs):
 
     # generate apical dendrites
     # connect obliques
-    connect_internal_branches(ret['apical_oblique']['topology'].roots, ret['apical_dendrite']['topology'].roots, misc.Random(seed), bifurcation_internal_density, bin_size)
+    connect_internal_branches(ret['apical_oblique']['topology'].roots, ret['apical_dendrite']['topology'].soma.children, misc.Random(seed), bifurcation_internal_density, bin_size)
     
     # spatial bias is a composition of truncated cones
     spatial_bias = biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 0.]), (220., 0., 0.), (2.5, 2.5), (2.5, 2.5), 1, 1, strict=True) + \
@@ -92,7 +93,7 @@ def generate(seed, **kwargs):
 
     # initialize the synthesizer for apical dendrites
     apic_synthesizer = MorphologySynthesizer(
-        root=ret['apical_dendrite']['topology'].roots,
+        root=ret['apical_dendrite']['topology'].soma,
         rng=misc.Random(seed),
         theta=0,
         phi=0,
@@ -113,7 +114,7 @@ def generate(seed, **kwargs):
     
      
     basal_synthesizer = MorphologySynthesizer(
-        root=ret['basal_dendrite']['topology'].roots,
+        root=ret['basal_dendrite']['topology'].soma,
         rng=misc.Random(seed),
         theta=(np.pi / 6, np.pi * 5 / 6),
         phi=(0, 2 * np.pi),

@@ -1,5 +1,20 @@
 import copy
-from ..io.swc import TYPE_CODES
+
+TYPE_LABELS = {
+    0: "unknown",
+    1: "soma",
+    2: "axon",
+    3: "basal_dendrite",
+    4: "apical_dendrite",
+    5: "apical_oblique",
+    6: "apical_secondary_dendrite",
+    7: "apical_secondary_oblique",
+}
+
+TYPE_CODES = {
+    label: code
+    for code, label in TYPE_LABELS.items()
+}
 
 class NeuriteObject:
     """Represent one section of a rooted neurite tree."""
