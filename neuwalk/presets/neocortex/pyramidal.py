@@ -20,7 +20,6 @@ def generate(seed, **kwargs):
     
     max_steps = kwargs.get("max_steps", 100)
     
-    seed = kwargs.get("seed", 1234)
     verbose = kwargs.get("verbose", False)
     n_std = kwargs.get("n_std", 1.0)
     max_attempts_per_window = kwargs.get("max_attempts_per_window", 10)
