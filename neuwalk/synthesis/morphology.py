@@ -9,9 +9,9 @@ from ..core.randomwalk import RandomWalk
 
 class MorphologySynthesizer:
     """Generate RandomWalk trajectories from a NeuriteProfile tree."""
-    def _merge_profiles(profile_roots):
+    def _merge_profiles(self, profile_roots):
 
-        assert sum(r.section_type != "soma") == len(profile_roots), "Soma should be provided alone rather than inside a list"
+        assert sum(r.section_type != "soma" for r in profile_roots) == len(profile_roots), "Soma should be provided alone rather than inside a list"
         
         # for non oblique, roots are attached to the soma          
         profile_soma = NeuriteProfile(1, section_type="soma")

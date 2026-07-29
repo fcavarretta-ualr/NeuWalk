@@ -1,4 +1,5 @@
 import copy
+from ..io.swc import TYPE_CODES
 
 class NeuriteObject:
     """Represent one section of a rooted neurite tree."""
@@ -7,7 +8,7 @@ class NeuriteObject:
         """
         Parameters
         ----------
-        section_type : object, optional
+        _section_type : object, optional
             Identifier describing the section type.
         parent : Neurite, optional
             Parent section.
@@ -15,6 +16,9 @@ class NeuriteObject:
             Treat as a root in calculating distances.
         """
         self.section_type = section_type
+
+        
+        
         self._parent = None
         self._children = []
         self.is_root_like = False
@@ -22,7 +26,19 @@ class NeuriteObject:
         if parent is not None:
             self.connect(parent, relation="parent")
 
-
+    @property
+    def section_type(self):
+        """Return a copy of the child sections."""
+        return self._section_type
+    
+    @section_type.setter
+    def section_type(self, value):
+        """Return a copy of the child sections."""
+        assert type(value) == str, "Section type should be described as a string"
+        value = value.lower()
+        assert value in TYPE_CODES.keys(), f"Unknown section type {value}."
+        self._section_type = value
+    
     @property
     def parent(self):
         """Return a copy of the child sections."""
@@ -219,7 +235,7 @@ class NeuriteObject:
         """Return the number of branching sections in this subtree."""
         return sum(
             len(neurite.children) == 2
-            for neurite in self.subtree if neurite.section_type != "soma"
+            for neurite in self.subtree if neurite._section_type != "soma"
         )
 
 
@@ -232,7 +248,7 @@ class NeuriteObject:
     @property
     def distance_from_root(self):
         """Return the path distance to the start of the section."""
-        if self.section_type == "soma" or not self.parent:
+        if self._section_type == "soma" or not self.parent:
             return 0.0
 
         return self.parent.distance_from_root + self.parent.length    
