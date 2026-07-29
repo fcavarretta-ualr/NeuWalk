@@ -4,6 +4,7 @@ from ... import misc
 from ...profiles import NeuriteProfile, connect_internal_branches
 from ...synthesis import TopologySynthesizer, MorphologySynthesizer
 from ... import biases
+from .. import _common
 import numpy as np
 
 radii = np.array([2000, 1250, 1250], dtype=float)
@@ -56,7 +57,7 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
 
     # initializa the synthesizer for apical dendrites
     tuft_synthesizer = MorphologySynthesizer(
-        root=topol_synthesizer.soma.children[0],
+        root=topol_synthesizer.roots,
         rng=misc.Random(seed=seed),
         theta=0,
         phi=0,
@@ -64,6 +65,8 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
         axis_direction=axis_direction,
         elongation_bias=biases.get_elongation("ellipsoid_boundary", np.zeros(3, dtype=float) + 50.0, 1, -1, orientation='in', center=center)
     )
+
+    
 
     return soma
 
@@ -119,31 +122,15 @@ def generate(seed, cell_type, **kwargs):
     #bifurcation_internal_density = all_params.pop("bifurcation_internal_density")
 
     # generate the profiles for each section type
-    ret = {}
-    
-    for section_type, params in all_params.items():
-      if verbose: print(f"Elaboration of {section_type}")
-      
-      if verbose: print(f"\tGenerating Branching-and-annihilating profile...", end="")
-      topol_synthesizer = TopologySynthesizer(
-            misc.Random(seed),
-            step_size=step_size,
-            section_type=section_type,
-            **params
-        )
-
-      topol_synthesizer.synthesize_progressive(
-          n_std=n_std,
-          max_attempts_per_window=max_attempts_per_window,
-          max_total_attempts=max_total_attempts,
-          verbose=verbose
-      )
-
-      ret[section_type] = {
-        'topology':topol_synthesizer,
-        }
-
-      if verbose: print("done\n")
+    ret = _common.synthesize_topologies(
+        all_params,
+        seed,
+        step_size,
+        n_std,
+        max_attempts_per_window,
+        max_total_attempts,
+        verbose,
+    )
 
 
     # create self-avoidance bias
@@ -166,7 +153,7 @@ def generate(seed, cell_type, **kwargs):
     # initialize the synthesizer for apical dendrites
     basal_synthesizer = MorphologySynthesizer(
         origin=soma_position,
-        root=ret['basal_dendrite']['topology'].roots,
+        root=ret['basal_dendrite']['topology'].soma,
         rng=misc.Random(seed),
         theta = primary_theta,
         phi=(0., 2 * np.pi),

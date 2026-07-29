@@ -1,5 +1,5 @@
 """Neocortical presets."""
 
-from . import pyramidal
+from .pyramidal import generate as generate_pyramidal
 
-__all__ = ["pyramidal"]
+__all__ = ["generate_pyramidal"]
