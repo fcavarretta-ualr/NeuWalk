@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from neuwalk.io import read_swc
-from neuwalk.profiles import NeuriteProfile
+from neuwalk.profiles import SectionProfile
 from neuwalk.sampling import EventSampler
 from neuwalk.misc import Random
 
@@ -70,7 +70,7 @@ def main():
     stats = load_statistics(args.directory, args.bin_size)
 
     rng = Random(1234)
-    neurite = NeuriteProfile(step_size=args.step_size, section_type="apical_dendrite")
+    section = SectionProfile(step_size=args.step_size, label="apical_dendrite")
     sampler = EventSampler(
         rng=rng,
         step_size=args.step_size,
@@ -84,7 +84,7 @@ def main():
     for i in range(args.samples):
         print(
             f"{i:3d}  "
-            f"{sampler.sample_event(neurite)}"
+            f"{sampler.sample_event(section)}"
         )
 
 

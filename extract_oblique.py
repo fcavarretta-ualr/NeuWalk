@@ -10,11 +10,11 @@ def iter_sections(section):
         yield from iter_sections(child)
 
 
-parser = argparse.ArgumentParser(description="Load and retain only apical-oblique dendrites.")
+parser = argparse.ArgumentParser(description="Load and retain only apical-oblique sections.")
 parser.add_argument("directory", help="Directory containing SWC files.")
 args = parser.parse_args()
 
-morphologies = load_morphologies(args.directory, delete_section_types="unknown")
+morphologies = load_morphologies(args.directory, delete_labels="unknown")
 apical_oblique_morphologies = []
 
 for roots in morphologies:
@@ -22,12 +22,12 @@ for roots in morphologies:
 
     for root in roots:
         for section in iter_sections(root):
-            if section.section_type != "apical_oblique":
+            if section.label != "apical_oblique":
                 continue
 
             parent = section.parent
 
-            if parent is None or parent.section_type != "apical_oblique":
+            if parent is None or parent.label != "apical_oblique":
                 if parent is not None:
                     parent.disconnect(section)
 

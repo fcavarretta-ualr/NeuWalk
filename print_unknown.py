@@ -8,24 +8,24 @@ import sys
 
 from pathlib import Path
 
-delete_section_types = ["unknown", "axon", "soma"]
+delete_labels = ["unknown", "axon", "soma"]
 
 directory = sys.argv[-2] 
-section_type = sys.argv[-1]
+label = sys.argv[-1]
 
-if section_type == "basal_dendrite":
-  delete_section_types.append("apical_dendrite")
-elif section_type == "apical_dendrite":
-  delete_section_types.append("basal_dendrite")
+if label == "basal_dendrite":
+  delete_labels.append("apical_dendrite")
+elif label == "apical_dendrite":
+  delete_labels.append("basal_dendrite")
 else:
-  print(f"Unknown section type {section_type}")
+  print(f"Unknown label {label}")
 
 total = []
 
 files = sorted(Path(directory).rglob("*.swc"))
 
-for filename, m1 in zip(files, morphologies.load_morphologies(directory, delete_section_types="axon")):
-  s1 = sum(rr.length  for r in m1 for rr in r.subtree if rr.section_type == "unknown")  
+for filename, m1 in zip(files, morphologies.load_morphologies(directory, delete_labels="axon")):
+  s1 = sum(rr.length  for r in m1 for rr in r.subtree if rr.label == "unknown")  
   s2 = sum(rr.length  for r in m1 for rr in r.subtree)
   print(filename, s1, s2, s1/s2)
   if np.isnan(s2):

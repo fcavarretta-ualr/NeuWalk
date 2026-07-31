@@ -62,9 +62,9 @@ class BifurcationBias:
 
         self._compute = compute
 
-    def compute(self, rng, neurite):
-        """Compute the bifurcation directions for a neurite."""
-        return self._compute(rng, neurite)
+    def compute(self, rng, section):
+        """Compute the bifurcation directions for a section."""
+        return self._compute(rng, section)
 
 
 class BiasRegistry:
@@ -144,8 +144,8 @@ class BiasRegistry:
                 f"Unknown bifurcation bias: {identifier!r}."
             ) from None
 
-        def compute(rng, neurite):
-            return function(rng, neurite, *args, **kwargs)
+        def compute(rng, section):
+            return function(rng, section, *args, **kwargs)
 
         return BifurcationBias(compute)
 

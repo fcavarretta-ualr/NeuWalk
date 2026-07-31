@@ -1,23 +1,23 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from ..core.neurite import Neurite, Neuron
+from ..core.section import Section, Neuron
 
 def plot_morphology(
-    neurite_list,
+    roots,
     section_colors=None,
     ax=None,
     linewidth=1.5,
     show=True,
 ):
     """
-    Plot a neurite and all its descendants in 3D.
+    Plot a section and all its descendants in 3D.
 
     Parameters
     ----------
-    neurite : Neurite
-        Root of the subtree to plot.
+    roots : Section or sequence of Section
+        Root(s) of the subtree(s) to plot.
     section_colors : dict, optional
-        Mapping from section types to Matplotlib colors. Sections whose type
+        Mapping from labels to Matplotlib colors. Sections whose label
         is not present in the mapping are plotted in black.
     ax : matplotlib.axes.Axes, optional
         Existing 3D axis.
@@ -31,8 +31,8 @@ def plot_morphology(
     matplotlib.axes.Axes
         The 3D axis.
     """
-    if isinstance(neurite_list, Neurite):
-        neurite_list = [neurite_list]
+    if isinstance(roots, Section):
+        roots = [roots]
 
     if section_colors is None:
         section_colors = {}
@@ -43,8 +43,8 @@ def plot_morphology(
 
     all_points = []
 
-    for neurite in neurite_list:
-        for section in neurite.subtree:
+    for root in roots:
+        for section in root.subtree:
 
             points = np.asarray(section.points, dtype=float)
 
@@ -52,7 +52,7 @@ def plot_morphology(
                 continue
 
             color = section_colors.get(
-                section.section_type,
+                section.label,
                 "black",
             )
 

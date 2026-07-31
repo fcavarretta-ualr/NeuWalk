@@ -2,14 +2,14 @@ import numpy as np
 from ..bias import BiasRegistry
 from ... import misc
 from . import _projection
-from ...core.neurite import Neurite
+from ...core.section import Section
 
-def _dendrite_repulsion(reference_dendrite, point, dendrites, K, n):
+def _section_repulsion(reference_section, point, sections, K, n):
     directions, distances, lengths = [], [], []
 
-    for dendrite in dendrites:
-        # reference point from points of a dendrite
-        points = np.array(dendrite.points, dtype=float)
+    for section in sections:
+        # reference point from points of a section
+        points = np.array(section.points, dtype=float)
 
         # from current point and ghost point
         delta = point - points
@@ -53,25 +53,25 @@ def _dendrite_repulsion(reference_dendrite, point, dendrites, K, n):
 
     return np.sum(directions.T * factors, axis=1)
 
-def dendrite_repulsion(reference_dendrite, reference_direction, dendrites, K, n, **kwargs):
-    dendrites = [ dendrite for dendrite in dendrites if len(dendrite.points) > 1 ]
-    if not dendrites:
+def section_repulsion(reference_section, reference_direction, sections, K, n, **kwargs):
+    sections = [ section for section in sections if len(section.points) > 1 ]
+    if not sections:
         return None
       
     if (K is None) != (n is None):
         raise ValueError("K and n must both be provided or both be None.")
 
     # ghost point
-    ghost_point = reference_dendrite._generate_point(reference_direction)
+    ghost_point = reference_section._generate_point(reference_direction)
 
     
-    result0 = _dendrite_repulsion(reference_dendrite,
-                        reference_dendrite.current_point,
-                        dendrites, K, n)
+    result0 = _section_repulsion(reference_section,
+                        reference_section.current_point,
+                        sections, K, n)
 
-    result1 = _dendrite_repulsion(reference_dendrite,
+    result1 = _section_repulsion(reference_section,
                         ghost_point,
-                        dendrites, K, n)
+                        sections, K, n)
 
     # result direction
 
@@ -80,7 +80,7 @@ def dendrite_repulsion(reference_dendrite, reference_direction, dendrites, K, n,
     #weight = np.linalg.norm(result)
     #result_direction = result / weight
 
-    result = _projection.project(reference_dendrite, result, **kwargs)    
+    result = _projection.project(reference_section, result, **kwargs)    
     return result #, weight
 
 
@@ -89,7 +89,7 @@ def sibling_repulsion(rng, random_walk, reference_direction, K, n, **kwargs):
     if random_walk.is_root_like:
         return None
     sections = random_walk.siblings
-    return dendrite_repulsion(random_walk, reference_direction, sections, K, n, **kwargs)
+    return section_repulsion(random_walk, reference_direction, sections, K, n, **kwargs)
 
 
 @BiasRegistry.register_elongation("parent_repulsion")
@@ -97,39 +97,39 @@ def parent_repulsion(rng, random_walk, reference_direction, K, n, **kwargs):
     if random_walk.is_root_like:
         return None
     sections = [random_walk.parent] if random_walk.parent else []
-    return dendrite_repulsion(random_walk, reference_direction, sections, K, n, **kwargs)
+    return section_repulsion(random_walk, reference_direction, sections, K, n, **kwargs)
 
 
-@BiasRegistry.register_elongation("all_dendrites_repulsion")
-def all_dendrites_repulsion(rng, random_walk, reference_direction, K, n, **kwargs):
+@BiasRegistry.register_elongation("all_sections_repulsion")
+def all_sections_repulsion(rng, random_walk, reference_direction, K, n, **kwargs):
     sections = [
         d for d in random_walk.wholetree
-        if d is not random_walk and d.section_type != "soma"
+        if d is not random_walk and d.label != "soma"
     ]
 
-    return dendrite_repulsion(random_walk, reference_direction, sections, K, n, **kwargs)
+    return section_repulsion(random_walk, reference_direction, sections, K, n, **kwargs)
 
 
 @BiasRegistry.register_elongation("nonrelated_repulsion")
 def nonrelated_repulsion(rng, random_walk, reference_direction, K, n, **kwargs):
     sections = [
         d for d in random_walk.root.wholetree
-        if d is not random_walk and d.section_type != "soma"
+        if d is not random_walk and d.label != "soma"
     ]
 
     parent = [random_walk.parent] if random_walk.parent else []
     siblings =  random_walk.siblings
     sections = list(set(sections) - set(parent) - set(siblings))
 
-    return dendrite_repulsion(random_walk, reference_direction, sections, K, n, **kwargs)
+    return section_repulsion(random_walk, reference_direction, sections, K, n, **kwargs)
   
 
 
 
 @BiasRegistry.register_elongation("root_repulsion")
-def root_repulsion_bias(rng, reference_dendrite, reference_direction, K, n, consider_root_like=False, **kwargs):
+def root_repulsion_bias(rng, reference_section, reference_direction, K, n, consider_root_like=False, **kwargs):
     # get the root   
-    root = Neurite._root_and_depth(reference_dendrite, consider_root_like=consider_root_like)['root']
+    root = Section._root_and_depth(reference_section, consider_root_like=consider_root_like)['root']
     
     if (K is None) != (n is None):
         raise ValueError("K and n must both be provided or both be None.")
@@ -147,12 +147,12 @@ def root_repulsion_bias(rng, reference_dendrite, reference_direction, K, n, cons
         return direction * factor
 
 
-    component1 = compute(reference_dendrite.points[-1])
+    component1 = compute(reference_section.points[-1])
 
-    component2 = compute(reference_dendrite._generate_point(reference_direction))
+    component2 = compute(reference_section._generate_point(reference_direction))
 
 
     if component1 is None or component2 is None:
         return None
         
-    return _projection.project(reference_dendrite, (component1+component2)*0.5, **kwargs)    
+    return _projection.project(reference_section, (component1+component2)*0.5, **kwargs)    

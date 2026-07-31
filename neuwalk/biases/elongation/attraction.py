@@ -2,11 +2,11 @@ import numpy as np
 from ..bias import BiasRegistry
 
 @BiasRegistry.register_elongation("attraction")
-def attraction_bias(rng, reference_dendrite, reference_direction, K, n, destination_point):
+def attraction_bias(rng, reference_section, reference_direction, K, n, destination_point):
     
-    direction = destination_point - reference_dendrite.points[-1]
+    direction = destination_point - reference_section.points[-1]
     
-    distance = np.linalg.norm(destination_point - reference_dendrite.points[-1])
+    distance = np.linalg.norm(destination_point - reference_section.points[-1])
 
     if np.isclose(distance, 0.):
       return None

@@ -13,7 +13,7 @@ def synthesize_topologies(
     with_soma=None,
 ):
     """
-    Synthesize the branching-and-annihilating topology for each section type.
+    Synthesize the branching-and-annihilating topology for each label.
 
     This is the loop duplicated across the neocortex, olfactory_bulb, and
     anterior_piriform_cortex generation code.
@@ -21,36 +21,36 @@ def synthesize_topologies(
     Parameters
     ----------
     all_params : dict
-        Mapping of section type to its ``TopologySynthesizer`` parameters.
+        Mapping of label to its ``TopologySynthesizer`` parameters.
     with_soma : None, bool, or callable, default None
         If ``None`` (default), ``with_soma`` is not passed to
         ``TopologySynthesizer`` at all, so its own default applies. If a
-        bool, applies uniformly to every section type. If a callable
-        ``section_type -> bool``, resolved separately for each section
-        type (e.g. every section type except one kind).
+        bool, applies uniformly to every label. If a callable
+        ``label -> bool``, resolved separately for each section
+        label (e.g. every label except one kind).
 
     Returns
     -------
     dict
-        Mapping of section type to ``{"topology": TopologySynthesizer}``.
+        Mapping of label to ``{"topology": TopologySynthesizer}``.
     """
     ret = {}
 
-    for section_type, params in all_params.items():
+    for label, params in all_params.items():
         if verbose:
-            print(f"Elaboration of {section_type}")
+            print(f"Elaboration of {label}")
             print(f"\tGenerating Branching-and-annihilating profile...", end="")
 
         extra_kwargs = {}
         if with_soma is not None:
             extra_kwargs["with_soma"] = (
-                with_soma(section_type) if callable(with_soma) else with_soma
+                with_soma(label) if callable(with_soma) else with_soma
             )
 
         topol_synthesizer = TopologySynthesizer(
             misc.Random(seed),
             step_size=step_size,
-            section_type=section_type,
+            label=label,
             **extra_kwargs,
             **params
         )
@@ -62,7 +62,7 @@ def synthesize_topologies(
             verbose=verbose
         )
 
-        ret[section_type] = {
+        ret[label] = {
             'topology': topol_synthesizer,
             }
 
@@ -72,10 +72,10 @@ def synthesize_topologies(
     return ret
 
 
-def synthesize_dendrite_tree(
+def synthesize_section_tree(
     ret,
     seed,
-    section_type,
+    label,
     theta,
     phi,
     axis_direction,
@@ -85,9 +85,9 @@ def synthesize_dendrite_tree(
     soma=None,
 ):
     """
-    Build and synthesize one dendrite tree's morphology from its topology's
+    Build and synthesize one section tree's morphology from its topology's
     soma. This is the ``MorphologySynthesizer`` pattern duplicated between
-    the neocortex and anterior_piriform_cortex apical/basal dendrite trees.
+    the neocortex and anterior_piriform_cortex apical/basal section trees.
 
     Returns
     -------
@@ -95,7 +95,7 @@ def synthesize_dendrite_tree(
         The synthesizer, after ``synthesize`` has been called on it.
     """
     synthesizer = MorphologySynthesizer(
-        topology=ret[section_type]['topology'].soma,
+        topology=ret[label]['topology'].soma,
         rng=misc.Random(seed),
         theta=theta,
         phi=phi,
@@ -103,8 +103,9 @@ def synthesize_dendrite_tree(
         bifurcation_bias=bifurcation_bias,
         bifurcation_internal_bias=bifurcation_internal_bias,
         elongation_bias=elongation_bias,
+        parent=soma
     )
 
-    synthesizer.synthesize(soma=soma)
+    synthesizer.synthesize()
 
     return synthesizer

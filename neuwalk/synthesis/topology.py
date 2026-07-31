@@ -1,20 +1,20 @@
 import numpy as np
 
 from ..sampling import EventSampler
-from ..profiles import NeuriteProfile
+from ..profiles import SectionProfile
 from ._progressive_sholl_synthesis import synthesize_progressive
 
 from .. import misc
 
 class TopologySynthesizer:
-    """Represent and synthesize a neurite tree profile."""
+    """Represent and synthesize a section tree profile."""
 
     def __init__(
         self,
         rng,
         step_size,
         bin_size,
-        section_type=None,
+        label=None,
         sholl_plot=None,
         bifurcation_density=None,
         annihilation_density=None,
@@ -35,8 +35,8 @@ class TopologySynthesizer:
             Length represented by one synthesis step.
         bin_size : float
             Width of each radial bin.
-        section_type : str, optional
-            Section type assigned to primary neurites.
+        label : str, optional
+            Label assigned to primary sections.
         sholl_plot : dict, optional
             Sholl statistics used by the main event sampler.
         bifurcation_density : array-like, optional
@@ -46,7 +46,7 @@ class TopologySynthesizer:
         bifurcation_count : dict, optional
             Bifurcation-count statistics used by the main sampler.
         primary_count_range : dict, optional
-            Minimum and maximum numbers of primary neurites.
+            Minimum and maximum numbers of primary sections.
         no_bifurcation_bins : array-like, optional
             Main bins where bifurcation is disabled.
         no_annihilation_bins : array-like, optional
@@ -70,8 +70,8 @@ class TopologySynthesizer:
         self.step_size = float(step_size)
         self.bin_size = float(bin_size)
 
-        assert section_type, "Specify section type"
-        self.section_type = section_type       
+        assert label, "Specify label"
+        self.label = label       
 
         self.sholl_plot_constraint = sholl_plot
         self.bifurcation_count_constraint = bifurcation_count
@@ -137,7 +137,7 @@ class TopologySynthesizer:
 
     def initialize(self):
         """
-        Create the primary neurites.
+        Create the primary sections.
 
         The primary roots are always created first as independent
         sections. If ``with_soma`` was set at construction, a soma section
@@ -145,29 +145,29 @@ class TopologySynthesizer:
 
         Returns
         -------
-        NeuriteProfile or list of NeuriteProfile
+        SectionProfile or list of SectionProfile
             The soma if ``with_soma`` is True, otherwise the list of
             independent primary roots.
         """
         if self.initialized:
             raise RuntimeError(
-                "The neurite tree is already initialized."
+                "The section tree is already initialized."
             )
 
-        primary_count = self.main_event_sampler.sample_primary_neurite_count()
+        primary_count = self.main_event_sampler.sample_primary_section_count()
 
         self._roots = [
-            NeuriteProfile(
+            SectionProfile(
                 step_size=self.step_size,
-                section_type=self.section_type,
+                label=self.label,
             )
             for _ in range(primary_count)
         ]
 
         if self.with_soma:
-            self._soma = NeuriteProfile(
+            self._soma = SectionProfile(
                 step_size=self.step_size,
-                section_type="soma",
+                label="soma",
             )
 
             for root in self._roots:
@@ -236,7 +236,7 @@ class TopologySynthesizer:
 
         Returns
         -------
-        NeuriteProfile or list of NeuriteProfile
+        SectionProfile or list of SectionProfile
             The soma if ``with_soma`` is True, otherwise the list of
             synthesized primary roots.
         """
@@ -256,18 +256,18 @@ class TopologySynthesizer:
         ----------
         max_steps : int, optional
             Maximum number of synthesis sweeps. If ``None``, synthesis
-            continues until no active neurites remain. Mutually exclusive
+            continues until no active sections remain. Mutually exclusive
             with ``distance_limit``.
         distance_limit : float, optional
-            Maximum path distance from the root that a neurite may reach.
-            A neurite stops being advanced once its tip distance
+            Maximum path distance from the root that a section may reach.
+            A section stops being advanced once its tip distance
             (``distance_from_root + length``) exceeds this value.
-            Synthesis stops once every active neurite has exceeded it.
+            Synthesis stops once every active section has exceeded it.
             Mutually exclusive with ``max_steps``.
 
         Returns
         -------
-        NeuriteProfile or list of NeuriteProfile
+        SectionProfile or list of SectionProfile
             The soma if ``with_soma`` is True, otherwise the list of
             synthesized primary roots.
         """
@@ -305,7 +305,7 @@ class TopologySynthesizer:
 
         if not self.initialized:
             self.initialize()
-            active_neurites = list(self._roots)
+            active_sections = list(self._roots)
 
             self.synthesis_logs.append(
                 [
@@ -315,60 +315,60 @@ class TopologySynthesizer:
                 ]
             )
         else:
-            active_neurites = [
-                neurite
-                for neurite in self._iter_sections()
-                if neurite.active
+            active_sections = [
+                section
+                for section in self._iter_sections()
+                if section.active
             ]
 
         step = 0
-        while active_neurites:
+        while active_sections:
             if (
                 max_steps is not None
                 and step >= max_steps
             ):
                 break
 
-            next_active_neurites = []
+            next_active_sections = []
 
-            for neurite in active_neurites:
-                if not neurite.active:
+            for section in active_sections:
+                if not section.active:
                     continue
 
                 if (
                     distance_limit is not None
-                    and neurite.distance_from_root + neurite.length
+                    and section.distance_from_root + section.length
                         > distance_limit
                 ):
                     continue
 
                 
-                event = self.event_sampler.sample_event(neurite)
+                event = self.event_sampler.sample_event(section)
 
                 synthesis_log.append(
                     {
-                        "neurite": neurite,
+                        "section": section,
                         "event": event,
                     }
                 )
 
                 if event == "elongate":
-                    neurite.elongate()
-                    next_active_neurites.append(neurite)
+                    section.elongate()
+                    next_active_sections.append(section)
 
                 elif event == "bifurcate":
-                    children = neurite.bifurcate()
-                    next_active_neurites.extend(children)
+                    children = section.bifurcate()
+                    next_active_sections.extend(children)
 
                 elif event == "annihilate":
-                    neurite.annihilate()
+                    section.annihilate()
 
                 else:
                     raise RuntimeError(
                         f"Unknown synthesis event: {event!r}."
                     )
 
-            active_neurites = misc.permute(self.rng, next_active_neurites)
+            active_sections = misc.permute(self.rng, next_active_sections)
             step += 1
 
         self.synthesis_logs.append(synthesis_log)
@@ -382,7 +382,7 @@ class TopologySynthesizer:
         Undo the most recent synthesis or activation log.
 
         Events are undone in reverse order. Initialization removes the primary
-        neurites. Internal-branch activation is reversed by deactivating the
+        sections. Internal-branch activation is reversed by deactivating the
         branches and restoring the previously active event sampler.
         """
         if not self.synthesis_logs:
@@ -394,16 +394,16 @@ class TopologySynthesizer:
 
         for record in reversed(synthesis_log):
             event = record["event"]
-            neurite = record.get("neurite")
+            section = record.get("section")
 
             if event == "elongate":
-                neurite.undo_elongate()
+                section.undo_elongate()
 
             elif event == "bifurcate":
-                neurite.undo_bifurcate()
+                section.undo_bifurcate()
 
             elif event == "annihilate":
-                neurite.undo_annihilate()
+                section.undo_annihilate()
 
             elif event == "initialize":
                 self._roots = []
@@ -428,7 +428,7 @@ class TopologySynthesizer:
             )
 
         print(
-            "Initial primary dendrites:\t"
+            "Initial primary sections:\t"
             f"synthesized={synthesized_primary_count:.1f}, "
             f"experimental={experimental_primary_count}"
         )

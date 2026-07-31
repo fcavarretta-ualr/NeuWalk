@@ -4,13 +4,13 @@ Version 3.0
 
 Features
 --------
-- Load an SWC file as a list of root Neurite sections.
-- Color sections according to section_type.
+- Load an SWC file as a list of root sections.
+- Color sections according to label.
 - Click a section to select it and increase its line width.
 - Clicking the selected section again keeps it selected.
 - Click empty plot space to deselect the section.
 - Preserve the current 3D camera and zoom when selecting or editing.
-- Change the selected section_type.
+- Change the selected label.
 - Apply the selected type to the selected section and all descendants.
 - Save the edited morphology with write_swc from swc.py.
 """
@@ -42,7 +42,7 @@ TYPE_COLORS = {
     "apical_secondary_dendrite": "tab:purple",
     "apical_secondary_oblique": "tab:brown",
 }
-SECTION_TYPES = tuple(TYPE_LABELS.values())
+LABEL_OPTIONS = tuple(TYPE_LABELS.values())
 NORMAL_WIDTH = 1.5
 SELECTED_WIDTH = 5.0
 NORMAL_MARKER_SIZE = 5.0
@@ -89,10 +89,10 @@ class SWCViewer:
                 if not np.allclose(points[0], parent_endpoint):
                     display_points = np.vstack((parent_endpoint, points))
 
-            section_type = section.section_type or "unknown"
+            label = section.label or "unknown"
             artist, = self.ax.plot(
                 display_points[:, 0], display_points[:, 1], display_points[:, 2],
-                color=self._color(section_type), linewidth=NORMAL_WIDTH,
+                color=self._color(label), linewidth=NORMAL_WIDTH,
                 marker="o" if len(display_points) == 1 else None,
                 markersize=NORMAL_MARKER_SIZE,
             )
@@ -108,14 +108,14 @@ class SWCViewer:
         self.ax.set_ylabel("y")
         self.ax.set_zlabel("z")
         self._update_title()
-        handles = [Line2D([0], [0], color=self._color(label), linewidth=2, label=label) for label in SECTION_TYPES]
+        handles = [Line2D([0], [0], color=self._color(label), linewidth=2, label=label) for label in LABEL_OPTIONS]
         self.ax.legend(handles=handles, loc="upper right", fontsize=8)
 
     def _build_controls(self):
         radio_ax = self.fig.add_axes((0.78, 0.39, 0.20, 0.50), facecolor="none")
-        radio_ax.set_title("Selected section type", loc="left", fontsize=10)
-        self.type_radio = RadioButtons(radio_ax, SECTION_TYPES, active=0)
-        self.type_radio.on_clicked(self._change_selected_type)
+        radio_ax.set_title("Selected label", loc="left", fontsize=10)
+        self.label_radio = RadioButtons(radio_ax, LABEL_OPTIONS, active=0)
+        self.label_radio.on_clicked(self._change_selected_label)
 
         subtree_ax = self.fig.add_axes((0.78, 0.27, 0.20, 0.07))
         self.subtree_button = Button(subtree_ax, "Apply type to subtree")
@@ -191,19 +191,19 @@ class SWCViewer:
             self.status_text.set_text("No section selected.")
         else:
             self._set_artist_selected(artist, True)
-            self._set_type_control(self.selected_section.section_type or "unknown")
+            self._set_label_control(self.selected_section.label or "unknown")
             self._update_status()
 
         self._update_title()
         self._restore_view(view)
         self.fig.canvas.draw_idle()
 
-    def _change_selected_type(self, section_type):
+    def _change_selected_label(self, label):
         if self.updating_type_control or self.selected_section is None:
             return
 
         view = self._capture_view()
-        self.selected_section.section_type = section_type
+        self.selected_section.label = label
         self._update_artist_color(self.selected_section)
         self._update_status()
         self._update_title()
@@ -217,14 +217,14 @@ class SWCViewer:
             return
 
         view = self._capture_view()
-        section_type = self.type_radio.value_selected
+        label = self.label_radio.value_selected
         subtree = self.selected_section.subtree
 
         for section in subtree:
-            section.section_type = section_type
+            section.label = label
             self._update_artist_color(section)
 
-        self._update_status(f"Applied {section_type} to {len(subtree)} section(s).")
+        self._update_status(f"Applied {label} to {len(subtree)} section(s).")
         self._update_title()
         self._restore_view(view)
         self.fig.canvas.draw_idle()
@@ -267,30 +267,30 @@ class SWCViewer:
     def _update_artist_color(self, section):
         artist = self.section_to_artist.get(id(section))
         if artist is not None:
-            artist.set_color(self._color(section.section_type or "unknown"))
+            artist.set_color(self._color(section.label or "unknown"))
 
     def _update_status(self, message=None):
         section = self.selected_section
         if section is None:
             self.status_text.set_text("No section selected.")
             return
-        section_type = section.section_type or "unknown"
-        self.status_text.set_text(message or f"Selected: {section_type}\nPoints: {len(section.points)}\nLength: {section.length:.3f}")
+        label = section.label or "unknown"
+        self.status_text.set_text(message or f"Selected: {label}\nPoints: {len(section.points)}\nLength: {section.length:.3f}")
 
     def _update_title(self):
         section = self.selected_section
         if section is None:
             self.ax.set_title(f"{self.filename.name} — SWC Viewer {VERSION}")
             return
-        section_type = section.section_type or "unknown"
-        self.ax.set_title(f"{self.filename.name} — SWC Viewer {VERSION}\nSelected: {section_type} | points: {len(section.points)} | length: {section.length:.3f}")
+        label = section.label or "unknown"
+        self.ax.set_title(f"{self.filename.name} — SWC Viewer {VERSION}\nSelected: {label} | points: {len(section.points)} | length: {section.length:.3f}")
 
-    def _set_type_control(self, section_type):
-        section_type = section_type if section_type in SECTION_TYPES else "unknown"
-        if self.type_radio.value_selected == section_type:
+    def _set_label_control(self, label):
+        label = label if label in LABEL_OPTIONS else "unknown"
+        if self.label_radio.value_selected == label:
             return
         self.updating_type_control = True
-        self.type_radio.set_active(SECTION_TYPES.index(section_type))
+        self.label_radio.set_active(LABEL_OPTIONS.index(label))
         self.updating_type_control = False
 
     def _set_equal_axes(self, points):
@@ -323,8 +323,8 @@ class SWCViewer:
         self.ax.set_zlim3d(view["zlim"])
 
     @staticmethod
-    def _color(section_type):
-        return TYPE_COLORS.get(section_type, "tab:pink")
+    def _color(label):
+        return TYPE_COLORS.get(label, "tab:pink")
 
     def show(self):
         plt.show()
@@ -345,7 +345,7 @@ def choose_file():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Visualize, edit, and save SWC section types.")
+    parser = argparse.ArgumentParser(description="Visualize, edit, and save SWC labels.")
     parser.add_argument("filename", nargs="?", help="SWC file to display")
     args = parser.parse_args()
     filename = args.filename or choose_file()

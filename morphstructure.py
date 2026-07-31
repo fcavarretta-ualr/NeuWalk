@@ -14,13 +14,13 @@ def print_hierarchy(roots):
             last_point = section.points[-1].tolist()
 
             label = (
-                f"{section.section_type} {section.length}\t"
+                f"{section.label} {section.length}\t"
                 f"{tuple(first_point)} -> {tuple(last_point)}"
             )
         else:
             only_point = section.points[-1].tolist()
             label = (
-                f"{section.section_type} {section.length}\t"
+                f"{section.label} {section.length}\t"
                 f"{tuple(only_point)}"
             )            
 

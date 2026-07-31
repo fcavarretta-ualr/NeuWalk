@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 from ... import misc
-from ...profiles import NeuriteProfile, connect_internal_branches
+from ...profiles import SectionProfile, connect_internal_branches
 from ... import biases
 from .. import _common
 import numpy as np
@@ -29,7 +29,7 @@ def generate(seed, cell_type, **kwargs):
     # density of oblique branch points
     bifurcation_internal_density = all_params.pop("bifurcation_internal_density")
 
-    # generate the profiles for each section type
+    # generate the profiles for each label
     ret = _common.synthesize_topologies(
         all_params,
         seed,
@@ -38,10 +38,10 @@ def generate(seed, cell_type, **kwargs):
         max_attempts_per_window,
         max_total_attempts,
         verbose,
-        with_soma=lambda section_type: section_type != "apical_oblique",
+        with_soma=lambda label: label != "apical_oblique",
     )
 
-    # generate apical dendrites
+    # generate apical sections
     # connect obliques
     connect_internal_branches(ret['apical_oblique']['topology'].roots, ret['apical_dendrite']['topology'].soma.children, misc.Random(seed), bifurcation_internal_density, bin_size)
     
@@ -52,19 +52,19 @@ def generate(seed, cell_type, **kwargs):
                    biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 740.]), (160., 0., 0.), (25.0, 75.0), (150.0, 150.0), 1, 1, strict=True)
 
     # create self-avoidance bias
-    dendritic_bias = biases.get_elongation("sibling_repulsion", 25.0, -2) +\
+    section_bias = biases.get_elongation("sibling_repulsion", 25.0, -2) +\
                 biases.get_elongation("nonrelated_repulsion", 25.0, -2)
 
     # somatic repulsion
     somatic_bias = biases.get_elongation("root_repulsion", 750.0, -2, consider_root_like=True)
 
-    # plane boundary, push the distal apical dendrites to bend
+    # plane boundary, push the distal apical sections to bend
     plane_bias = biases.get_elongation("plane_boundary", np.array([0., 0., 900.]), (np.pi, 0.), 10, -2)
 
     # compose the biases into the elongation bias
     elongation_bias = [
       (0.25, spatial_bias),
-      (0.005, dendritic_bias),
+      (0.005, section_bias),
       (0.2, somatic_bias),
       (0.1, plane_bias)
       ]
@@ -74,11 +74,11 @@ def generate(seed, cell_type, **kwargs):
     
     bifurcation_internal_bias = biases.get_bifurcation("internal_branch", np.pi / 2)  
 
-    # initialize and synthesize the apical dendrites
-    apic_synthesizer = _common.synthesize_dendrite_tree(
+    # initialize and synthesize the apical sections
+    apic_synthesizer = _common.synthesize_section_tree(
         ret,
         seed,
-        section_type='apical_dendrite',
+        label='apical_dendrite',
         theta=0,
         phi=0,
         axis_direction=np.array([0.0, 0.0, 1.0]),
@@ -87,18 +87,18 @@ def generate(seed, cell_type, **kwargs):
         elongation_bias=elongation_bias,
     )
     
-    # synthesize basal dendrites   
+    # synthesize basal sections   
     elongation_bias = [
-      (0.005, dendritic_bias),
+      (0.005, section_bias),
       (0.2, somatic_bias)
       ]
     
      
-    # initialize and synthesize the basal dendrites
-    basal_synthesizer = _common.synthesize_dendrite_tree(
+    # initialize and synthesize the basal sections
+    basal_synthesizer = _common.synthesize_section_tree(
         ret,
         seed,
-        section_type='basal_dendrite',
+        label='basal_dendrite',
         theta=(np.pi / 6, np.pi * 5 / 6),
         phi=(0, 2 * np.pi),
         axis_direction=np.array([0.0, 0.0, -1.0]),
@@ -107,7 +107,7 @@ def generate(seed, cell_type, **kwargs):
         soma=apic_synthesizer.soma,
     )
     
-    # re-use the same bias used for basal dendrites to generate oblique apical dendrites
+    # re-use the same bias used for basal sections to generate oblique apical sections
     # the option is_root_like make the first branch as a root
     apic_synthesizer.synthesize(
       is_root_like=True,

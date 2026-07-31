@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 from ... import misc
-from ...profiles import NeuriteProfile, connect_internal_branches
+from ...profiles import SectionProfile, connect_internal_branches
 from ...synthesis import TopologySynthesizer, MorphologySynthesizer
 from ... import biases
 from .. import _common
@@ -16,7 +16,7 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
     topol_synthesizer = TopologySynthesizer(
         misc.Random(seed),
         step_size=step_size,
-        section_type="apical_dendrite",
+        label="apical_dendrite",
         sholl_plot={'mean':[1,1], 'std':[0,0]},
         bin_size=np.linalg.norm(soma_position-glom_position),
         primary_count_range={"min":1, "max":1}
@@ -25,7 +25,7 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
     topol_synthesizer.synthesize()
 
 
-    # initializa the synthesizer for apical dendrites
+    # initializa the synthesizer for apical sections
     apical_synthesizer = MorphologySynthesizer(
         topology=topol_synthesizer.soma,
         rng=misc.Random(seed=seed),
@@ -37,11 +37,11 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
     )
 
 
-    # synthesize the tuft dendrites
+    # synthesize the tuft sections
     topol_synthesizer = TopologySynthesizer(
         misc.Random(seed),
         step_size=step_size,
-        section_type="apical_dendrite",
+        label="apical_dendrite",
         sholl_plot={'mean':[5,10,20,40,80,80,40,20,10,5,0], 'std':[0,5,10,20,40,40,20,10,5,2.5,0]},
         bin_size=10,
         primary_count_range={"min":4, "max":6},
@@ -53,7 +53,7 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
 
     center = apical_synthesizer.soma.children[0].points[-1] + axis_direction * glom_radius
 
-    # initializa the synthesizer for apical dendrites
+    # initializa the synthesizer for apical sections
     tuft_synthesizer = MorphologySynthesizer(
         topology=topol_synthesizer.roots,
         rng=misc.Random(seed=seed),
@@ -119,7 +119,7 @@ def generate(seed, cell_type, **kwargs):
     # density of oblique branch points
     #bifurcation_internal_density = all_params.pop("bifurcation_internal_density")
 
-    # generate the profiles for each section type
+    # generate the profiles for each label
     ret = _common.synthesize_topologies(
         all_params,
         seed,
@@ -132,7 +132,7 @@ def generate(seed, cell_type, **kwargs):
 
 
     # create self-avoidance bias
-    dendritic_bias = biases.get_elongation("sibling_repulsion", 25.0, -2) +\
+    section_bias = biases.get_elongation("sibling_repulsion", 25.0, -2) +\
                 biases.get_elongation("nonrelated_repulsion", 25.0, -2)
 
     # somatic repulsion
@@ -140,7 +140,7 @@ def generate(seed, cell_type, **kwargs):
     # compose the biases into the elongation bias
     elongation_bias = [
       (0.25, spatial_bias),
-      (0.005, dendritic_bias),
+      (0.005, section_bias),
       (0.2, somatic_bias)
       ]
     
@@ -148,7 +148,7 @@ def generate(seed, cell_type, **kwargs):
     bifurcation_bias =  biases.get_bifurcation("cross_torsion", np.pi / 3, space="ellipsoid", radii=radii)
     
 
-    # initialize the synthesizer for apical dendrites
+    # initialize the synthesizer for apical sections
     basal_synthesizer = MorphologySynthesizer(
         origin=soma_position,
         topology=ret['basal_dendrite']['topology'].soma,
@@ -160,7 +160,7 @@ def generate(seed, cell_type, **kwargs):
         elongation_bias=elongation_bias
     )
 
-    # synthesize apical dendrites
+    # synthesize apical sections
     basal_synthesizer.synthesize()
 
 

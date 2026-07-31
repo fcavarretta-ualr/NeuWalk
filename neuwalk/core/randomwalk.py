@@ -2,10 +2,10 @@ import numpy as np
 
 from .. import misc
 from ..biases import ElongationBias
-from .neurite import Neurite
+from .section import Section
 import inspect
 
-class RandomWalk(Neurite):
+class RandomWalk(Section):
     """Represent one branching-annihilating random walk."""
 
     _MIN_CENTRIFUGAL_ALIGNMENT = 1e-6
@@ -23,7 +23,7 @@ class RandomWalk(Neurite):
         centrifugal=True,
         parent=None,
         active=True,
-        section_type=None,
+        label=None,
         max_angle=np.pi / 2,
         elongation_random_weight=0.0,
         elongation_random_hill_k=None,
@@ -56,7 +56,7 @@ class RandomWalk(Neurite):
         if initial_direction is None and parent is None:
             raise ValueError("initial_direction is required for the root random walk.")
 
-        super().__init__(points=[first_point], section_type=section_type, parent=parent)
+        super().__init__(points=[first_point], label=label, parent=parent)
 
         if initial_direction is not None:
             initial_direction = misc.to_unit_vector(self._validate_vector(initial_direction, "initial_direction"))
@@ -228,7 +228,7 @@ class RandomWalk(Neurite):
         step_size = self._step_size(direction)
         
         # if it is the first point, do not compute bias
-        if not ( (self.parent is None or self.parent.section_type == "soma") and len(self.points) < 2 ):
+        if not ( (self.parent is None or self.parent.label == "soma") and len(self.points) < 2 ):
             # calculate the effect of the bias
             for weight, bias in self.elongation_bias:
                 value = bias.compute(self.rng, self, direction)
@@ -430,11 +430,11 @@ class RandomWalk(Neurite):
 
         return vector
 
-    def to_neurite(self):
-        """Convert this RandomWalk tree to a Neurite tree."""
-        neurite = Neurite(points=np.asarray(self.points, dtype=float).copy(), section_type=self.section_type)
+    def to_section(self):
+        """Convert this RandomWalk tree to a Section tree."""
+        section = Section(points=np.asarray(self.points, dtype=float).copy(), label=self.label)
 
         for child in self._children:
-            neurite.connect(child.to_neurite(), relation="child")
+            section.connect(child.to_section(), relation="child")
 
-        return neurite
+        return section

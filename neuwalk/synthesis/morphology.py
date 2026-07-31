@@ -2,19 +2,19 @@ import inspect
 import numpy as np
 
 from .. import misc
-from ..profiles import NeuriteProfile
-from ..core.neurite import Neurite
+from ..profiles import SectionProfile
+from ..core.section import Section
 from ..core.randomwalk import RandomWalk
 
 
 class MorphologySynthesizer:
-    """Generate RandomWalk trajectories from a NeuriteProfile tree."""
+    """Generate RandomWalk trajectories from a SectionProfile tree."""
     def _merge_profiles(self, profile_roots):
 
-        assert sum(r.section_type != "soma" for r in profile_roots) == len(profile_roots), "Soma should be provided alone rather than inside a list"
+        assert sum(r.label != "soma" for r in profile_roots) == len(profile_roots), "Soma should be provided alone rather than inside a list"
         
         # for non oblique, roots are attached to the soma          
-        profile_soma = NeuriteProfile(1, section_type="soma")
+        profile_soma = SectionProfile(1, label="soma")
         for root in profile_roots:
             root.connect(profile_soma, relation="parent")
             
@@ -42,16 +42,16 @@ class MorphologySynthesizer:
 
         Parameters
         ----------
-        topology : NeuriteProfile
+        topology : SectionProfile
             Root of the synthesized topology. It may be either a soma or a
-            single primary neurite.
+            single primary section.
         rng : numpy.random.Generator-like
             Random number generator used by the RandomWalk objects.
         origin : array_like, optional
             Soma position. Default is ``[0, 0, 0]``.
         theta : float, sequence of two floats, or dict, optional
             Polar angle or angular range used to generate the primary
-            directions. A dictionary may map a primary-dendrite count to a
+            directions. A dictionary may map a primary-section count to a
             dictionary containing ``theta`` and ``phi``. The ``"default"``
             entry is used when the count is not present.
         phi : float or sequence of two floats, optional
@@ -71,16 +71,16 @@ class MorphologySynthesizer:
             Weight of the random elongation component.
         elongation_bias_weight : float, default 1.0
             Global weight applied to elongation biases.
-        parent : Neurite, optional
-            Existing neurite that the primary dendrites will be connected
+        parent : Section, optional
+            Existing section that the primary sections will be connected
             to directly, as independent roots. This is unrelated to
-            ``soma``: no soma is created, and the primary dendrites are
+            ``soma``: no soma is created, and the primary sections are
             exposed through ``self.roots`` instead. As an extra check, if
             ``parent.root`` turns out to already be a soma section,
             ``self.soma`` is set to it. If ``parent`` is not given
             (default), the original soma-based behavior applies: a soma
             is created (or reused via ``synthesize(soma=...)``) and the
-            primary dendrites are attached to it.
+            primary sections are attached to it.
         """
         # in this case we have multiple roots,
         # that are accepted only if merged into a soma
@@ -88,8 +88,8 @@ class MorphologySynthesizer:
             topology = self._merge_profiles(topology)
 
             
-        if not isinstance(topology, NeuriteProfile):
-            raise TypeError("topology must be a NeuriteProfile.")
+        if not isinstance(topology, SectionProfile):
+            raise TypeError("topology must be a SectionProfile.")
 
         if origin is None:
             origin = np.zeros(3, dtype=float)
@@ -108,8 +108,8 @@ class MorphologySynthesizer:
             if np.isclose(np.linalg.norm(axis_direction), 0.0):
                 raise ValueError("axis_direction cannot be the zero vector.")
 
-        if parent is not None and not isinstance(parent, Neurite):
-            raise TypeError("parent must be a Neurite.")
+        if parent is not None and not isinstance(parent, Section):
+            raise TypeError("parent must be a Section.")
 
         self.topology = topology
         self.rng = rng
@@ -124,17 +124,17 @@ class MorphologySynthesizer:
         self.max_angle = max_angle
         self.elongation_random_weight = elongation_random_weight
         self.elongation_bias_weight = elongation_bias_weight
-        self.active_neurites = {}
+        self.active_sections = {}
         self.parent = parent
         self.soma = None
         self.roots = [] if parent is not None else None
         self.initialized = False
 
-        if parent is not None and parent.root.section_type == "soma":
+        if parent is not None and parent.root.label == "soma":
             self.soma = parent.root
 
     def _resolve_primary_angles(self, primary_count):
-        """Resolve theta and phi independently for the primary-dendrite count."""
+        """Resolve theta and phi independently for the primary-section count."""
         theta = self.theta
         phi = self.phi
 
@@ -152,14 +152,14 @@ class MorphologySynthesizer:
 
         return theta, phi
 
-    def next_event(self, neurite):
+    def next_event(self, section):
         """
         Return the next event for a profile/walk pair.
 
         Parameters
         ----------
-        neurite : tuple
-            Pair containing ``(NeuriteProfile, RandomWalk)``.
+        section : tuple
+            Pair containing ``(SectionProfile, RandomWalk)``.
 
         Returns
         -------
@@ -167,7 +167,7 @@ class MorphologySynthesizer:
             One of ``"elongate"``, ``"bifurcate"``,
             ``"bifurcate_internal"``, or ``"annihilate"``.
         """
-        profile, walk = neurite
+        profile, walk = section
         generated_steps = len(walk.points) - 1
 
         if generated_steps < profile.step_count:
@@ -176,7 +176,7 @@ class MorphologySynthesizer:
         if generated_steps > profile.step_count:
             raise RuntimeError(
                 f"The RandomWalk ({generated_steps}) has more steps than "
-                f"the corresponding NeuriteProfile ({profile.step_count})."
+                f"the corresponding SectionProfile ({profile.step_count})."
             )
 
         if profile.children:
@@ -197,11 +197,11 @@ class MorphologySynthesizer:
 
     @property
     def finished(self):
-        """ Check whether there are not more active neurites """
-        return len(self.active_neurites) == 0
+        """ Check whether there are not more active sections """
+        return len(self.active_sections) == 0
         
     def synthesize(self, max_steps=None, soma=None, **overrides):
-        """Generate all dendrites of the current minimum order."""
+        """Generate all sections of the current minimum order."""
         if max_steps is not None:
             if not isinstance(max_steps, int) or isinstance(max_steps, bool):
                 raise TypeError("max_steps must be an integer or None.")
@@ -218,11 +218,11 @@ class MorphologySynthesizer:
                     if soma is not None:
                         self.soma = soma
                     else:
-                        self.soma = Neurite(points=[self.origin.copy()], section_type="soma")
+                        self.soma = Section(points=[self.origin.copy()], label="soma")
 
                 attachment = self.soma
 
-            if self.topology.section_type == "soma":
+            if self.topology.label == "soma":
                 primary_profiles = list(self.topology.children)
             else:
                 primary_profiles = [self.topology]
@@ -247,50 +247,50 @@ class MorphologySynthesizer:
                     bifurcation_internal_bias=self.bifurcation_internal_bias,
                     centrifugal=self.centrifugal,
                     parent=attachment,
-                    section_type=profile.section_type,
+                    label=profile.label,
                     max_angle=self.max_angle,
                     elongation_random_weight=self.elongation_random_weight,
                     elongation_bias_weight=self.elongation_bias_weight,
                 )
-                self.active_neurites.setdefault(profile.order, []).append((profile, walk))
+                self.active_sections.setdefault(profile.order, []).append((profile, walk))
 
                 if self.roots is not None:
                     self.roots.append(walk)
 
             self.initialized = True
 
-        if not self.active_neurites:
+        if not self.active_sections:
             return self.roots if self.roots is not None else self.soma
 
-        current_order = min(self.active_neurites)
+        current_order = min(self.active_sections)
 
-        for _, walk in self.active_neurites[current_order]:
-            # set eventual values for the neurites
+        for _, walk in self.active_sections[current_order]:
+            # set eventual values for the sections
             for name, value in overrides.items():
                 setattr(walk, name, value)
             walk.active = True
 
         step = 0
 
-        while self.active_neurites[current_order]:
+        while self.active_sections[current_order]:
             if max_steps is not None and step >= max_steps:
                 return self.roots if self.roots is not None else self.soma
 
-            current_neurites = self.active_neurites[current_order]
-            self.active_neurites[current_order] = []
+            current_sections = self.active_sections[current_order]
+            self.active_sections[current_order] = []
 
-            for neurite in current_neurites:
-                profile, walk = neurite
+            for section in current_sections:
+                profile, walk = section
 
                 if not walk.active:
                     continue
 
-                event = self.next_event(neurite)
+                event = self.next_event(section)
 
                 match event:
                     case "elongate":
                         walk.elongate()
-                        self.active_neurites[current_order].append(neurite)
+                        self.active_sections[current_order].append(section)
 
                     case "bifurcate" | "bifurcate_internal":
                         # select the bifurcation
@@ -299,11 +299,11 @@ class MorphologySynthesizer:
                         # handle children
                         for child_profile, child_walk in zip(profile.children, children):                                
                                 
-                            # section type may change
-                            child_walk.section_type = child_profile.section_type
+                            # label may change
+                            child_walk.label = child_profile.label
 
-                            # add neurites
-                            self.active_neurites.setdefault(child_profile.order, []).append((child_profile, child_walk))                  
+                            # add sections
+                            self.active_sections.setdefault(child_profile.order, []).append((child_profile, child_walk))                  
                         
                     case "annihilate":
                         walk.annihilate()
@@ -311,13 +311,13 @@ class MorphologySynthesizer:
                     case _:
                         raise RuntimeError(f"Unknown synthesis event: {event!r}.")
 
-            for _, walk in current_neurites:
+            for _, walk in current_sections:
                 if walk.pending_event:
                     walk.update_state()
 
             step += 1
 
-        del self.active_neurites[current_order]
+        del self.active_sections[current_order]
         return self.roots if self.roots is not None else self.soma
 
     def describe(self):
@@ -339,7 +339,7 @@ class MorphologySynthesizer:
             )
 
         print(
-            "Initial primary dendrites: "
+            "Initial primary sections: "
             f"synthesized={synthesized_primary_count:.1f}, "
             f"experimental={experimental_primary}"
         )

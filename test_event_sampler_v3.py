@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from neuwalk.io import read_swc
-from neuwalk.profiles import NeuriteProfile
+from neuwalk.profiles import SectionProfile
 from neuwalk.sampling import EventSampler
 
 
@@ -165,16 +165,16 @@ def main():
         no_annihilation_bins=stats["no_annihilation_bins"],
     )
 
-    soma = NeuriteProfile(
+    soma = SectionProfile(
         step_size=args.step_size,
-        section_type="soma",
+        label="soma",
     )
 
-    primary_count = sampler.sample_primary_neurite_count()
+    primary_count = sampler.sample_primary_section_count()
 
-    active = soma.create_primary_dendrites(
+    active = soma.create_primary_sections(
         number=primary_count,
-        section_type="basal_dendrite",
+        label="basal_dendrite",
     )
 
     for _ in range(args.max_steps):
@@ -182,26 +182,26 @@ def main():
             break
 
         sampled = [
-            (neurite, sampler.sample_event(neurite))
-            for neurite in active
+            (section, sampler.sample_event(section))
+            for section in active
         ]
 
         next_active = []
 
-        for neurite, event in sampled:
+        for section, event in sampled:
             if event == "elongate":
-                neurite.elongate()
-                next_active.append(neurite)
+                section.elongate()
+                next_active.append(section)
 
             elif event == "bifurcate":
-                next_active.extend(neurite.bifurcate())
+                next_active.extend(section.bifurcate())
 
             elif event == "bifurcate_internal":
-                children = neurite.bifurcate_internal()
+                children = section.bifurcate_internal()
                 next_active.append(children[0])
 
             elif event == "annihilate":
-                neurite.annihilate()
+                section.annihilate()
 
             else:
                 raise RuntimeError(

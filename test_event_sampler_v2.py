@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from neuwalk.io import read_swc
-from neuwalk.profiles import NeuriteProfile
+from neuwalk.profiles import SectionProfile
 from neuwalk.sampling import EventSampler
 from neuwalk.misc import Random
 
@@ -39,7 +39,7 @@ def load_statistics(directory, bin_size):
         primary_counts.append(
             sum(
                 len(root.children)
-                if root.section_type == "soma"
+                if root.label == "soma"
                 else 1
                 for root in roots
             )
@@ -91,16 +91,16 @@ def main():
         primary_count_range=stats["primary_count_range"],
     )
 
-    soma = NeuriteProfile(
+    soma = SectionProfile(
         step_size=args.step_size,
-        section_type="soma",
+        label="soma",
     )
 
-    primary_count = sampler.sample_primary_neurite_count()
+    primary_count = sampler.sample_primary_section_count()
 
-    active = soma.create_primary_dendrites(
+    active = soma.create_primary_sections(
         number=primary_count,
-        section_type="dendrite",
+        label="dendrite",
     )
 
     for step in range(args.max_steps):
@@ -108,26 +108,26 @@ def main():
             break
 
         events = [
-            (neurite, sampler.sample_event(neurite))
-            for neurite in active
+            (section, sampler.sample_event(section))
+            for section in active
         ]
 
         next_active = []
 
-        for neurite, event in events:
+        for section, event in events:
             if event == "elongate":
-                neurite.elongate()
-                next_active.append(neurite)
+                section.elongate()
+                next_active.append(section)
 
             elif event == "bifurcate":
-                next_active.extend(neurite.bifurcate())
+                next_active.extend(section.bifurcate())
 
             elif event == "bifurcate_internal":
-                children = neurite.bifurcate_internal()
+                children = section.bifurcate_internal()
                 next_active.append(children[0])
 
             elif event == "annihilate":
-                neurite.annihilate()
+                section.annihilate()
 
             else:
                 raise RuntimeError(f"Unknown event: {event!r}")

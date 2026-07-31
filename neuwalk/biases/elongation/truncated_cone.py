@@ -3,7 +3,7 @@ from ..bias import BiasRegistry
 from ... import misc
 
 def truncated_cone_boundary(
-    reference_dendrite,
+    reference_section,
     reference_direction, 
     origin,
     axis,
@@ -25,7 +25,7 @@ def truncated_cone_boundary(
     axis_direction = misc.EllipsoidalCoordinates.to_cartesian((1.0, theta, phi))
 
     # relative coordinates of the point
-    rel_point = misc.AxialFrame.to_local(reference_dendrite.current_point, axis_direction, center=origin)
+    rel_point = misc.AxialFrame.to_local(reference_section.current_point, axis_direction, center=origin)
 
     # calculate the radiuses
     t = rel_point[2] / length
@@ -38,7 +38,7 @@ def truncated_cone_boundary(
     dest_point = t * axis_direction * length + origin
 
     # direction
-    direction = dest_point - reference_dendrite.current_point
+    direction = dest_point - reference_section.current_point
 
     if np.isclose(np.linalg.norm(direction), 0.0):
         return None
@@ -64,7 +64,7 @@ def truncated_cone_boundary(
         factor = misc.hill(rho, K, n)
     
 
-    #print(direction, reference_dendrite.current_point, dest_point)
+    #print(direction, reference_section.current_point, dest_point)
     return misc.to_unit_vector(direction) * factor
 
 
@@ -78,7 +78,7 @@ def truncated_cone_boundary(
 @BiasRegistry.register_elongation("truncated_cone_boundary")
 def truncated_cone_boundary_bias(
     rng,
-    reference_dendrite,
+    reference_section,
     reference_direction, 
     origin,
     axis,
@@ -91,7 +91,7 @@ def truncated_cone_boundary_bias(
 
 
     return truncated_cone_boundary(
-        reference_dendrite,
+        reference_section,
         reference_direction, 
         origin,
         axis,

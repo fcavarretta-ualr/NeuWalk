@@ -3,7 +3,7 @@ from ..bias import BiasRegistry
 from ... import misc
 
 def ellipsoid_boundary(
-  reference_dendrite,
+  reference_section,
   reference_direction,
   radii,
   K,
@@ -41,7 +41,7 @@ def ellipsoid_boundary(
   sign = -1 if orientation == "in" else 1
   
   # normal distance
-  distance = sign * misc.EllipsoidalCoordinates.depth(reference_dendrite.points[-1], radii, center=center)
+  distance = sign * misc.EllipsoidalCoordinates.depth(reference_section.points[-1], radii, center=center)
 
   if strict:
     current_depth = sign * distance
@@ -52,7 +52,7 @@ def ellipsoid_boundary(
     
 
   # the orientation is outward by default
-  normal_direction = sign * misc.EllipsoidalCoordinates.normal_direction(reference_dendrite.points[-1], radii, center=center)
+  normal_direction = sign * misc.EllipsoidalCoordinates.normal_direction(reference_section.points[-1], radii, center=center)
 
   # if it is already aligned, do not correct
   if np.dot(normal_direction, reference_direction) > 0:
@@ -68,7 +68,7 @@ def ellipsoid_boundary(
 @BiasRegistry.register_elongation("ellipsoid_boundary")
 def ellipsoid_boundary_bias(
     rng,
-    reference_dendrite,
+    reference_section,
     reference_direction,
     radii,
     K,
@@ -81,7 +81,7 @@ def ellipsoid_boundary_bias(
 
 
     return ellipsoid_boundary(
-      reference_dendrite,
+      reference_section,
       reference_direction,
       radii,
       K,

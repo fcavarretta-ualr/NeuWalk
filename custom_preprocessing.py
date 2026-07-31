@@ -11,12 +11,12 @@ def translate_subtree(section, target=None):
     translate_subtree(ch, target=section.points[-1])
     
 
-def extract_neurites(sectionmorphology, section_type):
+def extract_sections(sectionmorphology, label):
   """
-  Clone a morphology and extract top-level trees of selected section types.
+  Clone a morphology and extract top-level trees of selected labels.
 
   A selected section becomes a retained root when it has no parent or when
-  its parent's section type is different.
+  its parent's label is different.
   """
   
   root_sections = []
@@ -27,12 +27,12 @@ def extract_neurites(sectionmorphology, section_type):
     # let's work on a copy
     for section in root.clone().subtree:
       # found a section of interest
-      if section.section_type == section_type:
+      if section.label == label:
 
         
-        # if the section is of interest but parent has a different section type
+        # if the section is of interest but parent has a different label
         # we should disconnect and treat as an independent tree
-        if section.parent and section.parent.section_type != section_type:
+        if section.parent and section.parent.label != label:
           section.disconnect_from_parent()
 
         # now if it has no parent, it is a root
@@ -42,7 +42,7 @@ def extract_neurites(sectionmorphology, section_type):
   # filter descendants from the root which are not of the same section
   for root in root_sections:
       for section in root.subtree:
-        if section.section_type != section_type:
+        if section.label != label:
           section.disconnect_from_parent()
 
   # translate the root to the origin
@@ -55,9 +55,9 @@ def extract_neurites(sectionmorphology, section_type):
     
 def preprocess_morphology(morphology):
     """Split one loaded morphology into three independent cloned groups."""
-    return extract_neurites(morphology, "basal_dendrites"), \
-           extract_neurites(morphology, "apical_dendrites"), \
-           extract_neurites(morphology, "apical_oblique")
+    return extract_sections(morphology, "basal_dendrites"), \
+           extract_sections(morphology, "apical_dendrites"), \
+           extract_sections(morphology, "apical_oblique")
   
 if __name__ == '__main__':
   import sys
@@ -67,5 +67,5 @@ if __name__ == '__main__':
   morphologies = load_morphologies(sys.argv[-1])
 
   for morphology in morphologies:
-      basal_dendrites, apical_dendrites, apical_obliques = \
+      basal_sections, apical_sections, apical_obliques = \
                        preprocess_morphology(morphology)

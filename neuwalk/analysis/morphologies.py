@@ -4,13 +4,13 @@ import numpy as np
 
 from .. import misc
 from ..io import read_swc
-from ..core.neurite import Neurite, Neuron
+from ..core.section import Section, Neuron
 
 def _all_sections(roots, non_soma_only=True):
     """ iterate all the sections """
     ret = []
     for root in roots.copy():
-        ret += [section for section in root.subtree if not non_soma_only or section.section_type != "soma"]
+        ret += [section for section in root.subtree if not non_soma_only or section.label != "soma"]
     return ret
 
     
@@ -18,9 +18,9 @@ def repair_sections(roots, tolerance=10, verbose=True):
     """Remove consecutive duplicate points from every section in the tree."""
 
     # Fix all leaves
-    for neurite in _all_sections(roots):
-        if neurite.section_type != "soma" and not neurite.has_children and neurite.length <= tolerance:
-            neurite.disconnect()
+    for section in _all_sections(roots):
+        if section.label != "soma" and not section.has_children and section.length <= tolerance:
+            section.disconnect()
                
                     
     # merge single children sections
@@ -28,23 +28,23 @@ def repair_sections(roots, tolerance=10, verbose=True):
     
     while len(all_sections):
         # get the first node
-        neurite = all_sections.pop(0)
+        section = all_sections.pop(0)
 
         # merge as long as we have one child
-        while len(neurite.children) == 1:
-            child = neurite.children[0]
+        while len(section.children) == 1:
+            child = section.children[0]
 
             # disconnect and remove from the list
             child.disconnect_from_parent()
             all_sections.remove(child)
 
             # connect points
-            neurite.points += child.points[1:]
+            section.points += child.points[1:]
 
             # re-arrange connectivity
             for ch in child.children:
                 ch.disconnect_from_parent()
-                ch.connect(neurite, relation="parent")
+                ch.connect(section, relation="parent")
 
 
     for section in _all_sections(roots):
@@ -99,12 +99,12 @@ def delete_consecutive_duplicate_points(roots):
             #assert len(section.points) > 1, "Section has less than 2 points."
 
 
-def delete_sections(roots, forbidden_section_types):
+def delete_sections(roots, forbidden_labels):
     for root in roots.copy():
         for section in root.subtree:
 
             # if a section is not of interested it is disconnected
-            if section.section_type in forbidden_section_types:
+            if section.label in forbidden_labels:
                 section.disconnect()
                 
                 if section in roots:
@@ -130,13 +130,13 @@ def translate_sections(roots):
                 
 
 def process_soma(roots):
-    soma = Neurite(section_type="soma")
+    soma = Section(label="soma")
 
     # check soma integrity
     for section in _all_sections(roots, non_soma_only=False):              
         # delete somata
-        if section.section_type == "soma":
-            if section.parent and section.parent.section_type != "soma":
+        if section.label == "soma":
+            if section.parent and section.parent.label != "soma":
                 raise ValueError("Soma has a non-soma parent")
 
             soma.points += section.points
@@ -148,7 +148,7 @@ def process_soma(roots):
     for section in _all_sections(roots, non_soma_only=True):              
         # delete somata
             # disconnect from previous somata
-            if section.parent and section.parent.section_type == "soma":
+            if section.parent and section.parent.label == "soma":
                 section.disconnect_from_parent()
 
             # if it has not parent connect with the new soma
@@ -162,15 +162,15 @@ def process_soma(roots):
 
                 
 
-def process_morphology(roots, delete_section_types=None):
-    """Delete selected section types and optionally merge same-type single-child sections."""
-    # 1. delete section type that are not of interest
-    delete_sections(roots, delete_section_types)
+def process_morphology(roots, delete_labels=None):
+    """Delete selected labels and optionally merge same-label single-child sections."""
+    # 1. delete labels that are not of interest
+    delete_sections(roots, delete_labels)
 
     # 2. check all the sections and delete duplicated consecutive points
     delete_consecutive_duplicate_points(roots)
 
-    if "soma" not in delete_section_types:
+    if "soma" not in delete_labels:
         # 3. replace some with point centered on the origin
         process_soma(roots)
     
@@ -188,20 +188,20 @@ def process_morphology(roots, delete_section_types=None):
     
 
 
-def _normalize_section_types(section_types):
-    if type(section_types) == str:
-        return [section_types]
-    elif type(section_types) == list:
-        for s in section_types:
+def _normalize_labels(labels):
+    if type(labels) == str:
+        return [labels]
+    elif type(labels) == list:
+        for s in labels:
             if type(s) != str:
-                raise TypeError("Inappropriate section type")
+                raise TypeError("Inappropriate label")
     else:
-        raise TypeError("Inappropriate section type: it should be a string or a list of strings")
+        raise TypeError("Inappropriate label: it should be a string or a list of strings")
         
-    return section_types
+    return labels
 
     
-def load_morphologies(directory, delete_section_types="unknown", return_file_names=False):
+def load_morphologies(directory, delete_labels="unknown", return_file_names=False):
     """Load and process morphologies from all SWC files in a directory."""
     
     files = sorted(Path(directory).rglob("*.swc"))
@@ -218,7 +218,7 @@ def load_morphologies(directory, delete_section_types="unknown", return_file_nam
         m = read_swc(filename)
 
         # preprocess morphology
-        process_morphology(m, delete_section_types)
+        process_morphology(m, delete_labels)
         
         # append morphology
         if m:

@@ -4,9 +4,9 @@ import neuwalk.visualization as vis
 
 import sys
 
-delete_section_types = ["unknown", "axon", "basal_dendrite"]
+delete_categories = ["unknown", "axon", "basal_dendrite"]
 
-m = morphologies.load_morphologies(sys.argv[-1], delete_section_types=delete_section_types)
+m = morphologies.load_morphologies(sys.argv[-1], delete_categories=delete_categories)
 
 
 for x in m:

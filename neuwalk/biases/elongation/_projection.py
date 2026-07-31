@@ -33,13 +33,13 @@ def _project_plane(point, theta, phi, direction, center=None):
     point, direction, 'plane', theta=theta, phi=phi, center=center
     )
 
-def project(neurite, direction, **kwargs):
+def project(section, direction, **kwargs):
     space = kwargs.get('space')
     match space:
       case "ellipsoid":
-        projected_direction = _project_ellipsoid(neurite.points[-1], kwargs.get('radii'), direction, center=kwargs.get('center'))
+        projected_direction = _project_ellipsoid(section.points[-1], kwargs.get('radii'), direction, center=kwargs.get('center'))
       case "plane":
-        projected_direction = _project_plane(neurite.points[-1], kwargs.get('theta', 0), kwargs.get('phi', 0), direction, center=kwargs.get('center'))
+        projected_direction = _project_plane(section.points[-1], kwargs.get('theta', 0), kwargs.get('phi', 0), direction, center=kwargs.get('center'))
       case _:
         return direction
 

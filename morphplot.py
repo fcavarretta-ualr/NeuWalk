@@ -19,7 +19,7 @@ def main():
     parser.add_argument(
         "--color-sections",
         action="store_true",
-        help="Color sections according to their SWC section type.",
+        help="Color sections according to their SWC label.",
     )
 
     args = parser.parse_args()

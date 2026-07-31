@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from neuwalk.io import read_swc
-from neuwalk.profiles import NeuriteProfile
+from neuwalk.profiles import SectionProfile
 from neuwalk.sampling import EventSampler
 from neuwalk.synthesis import TopologySynthesizer
 

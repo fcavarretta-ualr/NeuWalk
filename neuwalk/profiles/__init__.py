@@ -1,9 +1,9 @@
 # neuwalk/profiles/__init__.py
 
-from .neurite import NeuriteProfile
-from .assign_neurites import connect_internal_branches
+from .section import SectionProfile
+from .assign_sections import connect_internal_branches
 
 __all__ = [
-    "NeuriteProfile",
+    "SectionProfile",
     "connect_internal_branches"
 ]

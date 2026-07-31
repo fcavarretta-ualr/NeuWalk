@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 from ... import misc
-from ...profiles import NeuriteProfile, connect_internal_branches
+from ...profiles import SectionProfile, connect_internal_branches
 from ... import biases
 from .. import _common
 import numpy as np
@@ -28,7 +28,7 @@ def generate(seed, cell_type, **kwargs):
     # density of oblique branch points
     #bifurcation_internal_density = all_params.pop("bifurcation_internal_density")
 
-    # generate the profiles for each section type
+    # generate the profiles for each label
     ret = _common.synthesize_topologies(
         all_params,
         seed,
@@ -44,7 +44,7 @@ def generate(seed, cell_type, **kwargs):
     spatial_bias = biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 0.]), (1100., 0., 0.), (2.5, 2.5), (25.0, 300.0), 1, 1)
 
     # create self-avoidance bias
-    dendritic_bias = biases.get_elongation("sibling_repulsion", 25.0, -2) +\
+    section_bias = biases.get_elongation("sibling_repulsion", 25.0, -2) +\
                 biases.get_elongation("nonrelated_repulsion", 25.0, -2)
 
     # somatic repulsion
@@ -52,7 +52,7 @@ def generate(seed, cell_type, **kwargs):
     # compose the biases into the elongation bias
     elongation_bias = [
       (0.25, spatial_bias),
-      (0.005, dendritic_bias),
+      (0.005, section_bias),
       (0.2, somatic_bias)
       ]
     
@@ -60,11 +60,11 @@ def generate(seed, cell_type, **kwargs):
     bifurcation_bias = biases.get_bifurcation("radial_torsion", np.pi / 3)
     
 
-    # initialize and synthesize the apical dendrites
-    apic_synthesizer = _common.synthesize_dendrite_tree(
+    # initialize and synthesize the apical sections
+    apic_synthesizer = _common.synthesize_section_tree(
         ret,
         seed,
-        section_type='apical_dendrite',
+        label='apical_dendrite',
         theta={0:0, "default":np.pi / 3},
         phi=0,
         axis_direction=np.array([0.0, 0.0, 1.0]),
@@ -76,15 +76,15 @@ def generate(seed, cell_type, **kwargs):
     spatial_bias = biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 0.]), (-1100., 0., 0.), (2.5, 2.5), (25.0, 300.0), 1, 1)    
     elongation_bias = [
       (0.25, spatial_bias),
-      (0.005, dendritic_bias),
+      (0.005, section_bias),
       (0.2, somatic_bias)
       ]    
      
-    # initialize and synthesize the basal dendrites
-    basal_synthesizer = _common.synthesize_dendrite_tree(
+    # initialize and synthesize the basal sections
+    basal_synthesizer = _common.synthesize_section_tree(
         ret,
         seed,
-        section_type='basal_dendrite',
+        label='basal_dendrite',
         theta=(0, np.pi / 2),
         phi=(0, 2 * np.pi),
         axis_direction=np.array([0.0, 0.0, -1.0]),

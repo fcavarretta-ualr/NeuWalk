@@ -1,10 +1,10 @@
 import numpy as np
 
-from ..core.neurite import Neurite, Neuron, TYPE_LABELS, TYPE_CODES
+from ..core.section import Section, Neuron, TYPE_LABELS, TYPE_CODES
 
 
 def read_swc(filename):
-    """Read an SWC file and return a list of root Neurite objects."""
+    """Read an SWC file and return a list of root Section objects."""
     data = np.loadtxt(filename, comments="#", ndmin=2)
 
     if data.shape[1] != 7:
@@ -73,8 +73,8 @@ def read_swc(filename):
 
     def build_section(start_id, parent_section=None):
         node = nodes[start_id]
-        section = Neurite(
-            section_type=TYPE_LABELS[node["type"]],
+        section = Section(
+            label=TYPE_LABELS[node["type"]],
             parent=parent_section,
         )
 
@@ -131,7 +131,7 @@ def write_swc(filename, roots, default_radius=1.0):
 
         for root in roots:
             for section in root.subtree:
-                type_code = TYPE_CODES[section.section_type]
+                type_code = TYPE_CODES[section.label]
 
                 if section.parent is None:
                     if len(section.points) < 1:

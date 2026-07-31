@@ -5,7 +5,7 @@ from .. import estimation as es
 
 class EventSampler:
     """
-    Sample neurite synthesis events from radial event densities.
+    Sample section synthesis events from radial event densities.
 
     Initialize using either ``sholl_plot`` or both
     ``bifurcation_density`` and ``annihilation_density``.
@@ -50,7 +50,7 @@ class EventSampler:
         bifurcation_count : dict, optional
             Bifurcation-count statistics used with ``sholl_plot``.
         primary_count_range : dict, optional
-            Minimum and maximum numbers of primary neurites.
+            Minimum and maximum numbers of primary sections.
         no_bifurcation_bins : array-like, optional
             Bins where bifurcation is disabled.
         no_annihilation_bins : array-like, optional
@@ -175,7 +175,7 @@ class EventSampler:
         sholl_plot,
         primary_count_range,
     ):
-        """Initialize the primary-neurite count distribution."""
+        """Initialize the primary-section count distribution."""
         if sholl_plot is None:
             raise ValueError(
                 "primary_count_range requires sholl_plot."
@@ -260,10 +260,10 @@ class EventSampler:
 
         return float(density[selected_bin] * step_length)
 
-    def _probability_fn(self, neurite):
+    def _probability_fn(self, section):
         """Calculate event probabilities for the latest synthesis step."""                
-        distance_end = neurite.distance_from_root + neurite.length
-        distance_start = distance_end - neurite.step_size
+        distance_end = section.distance_from_root + section.length
+        distance_start = distance_end - section.step_size
 
         if distance_end <= distance_start:
             return 0.0, 0.0, 0.0
@@ -281,21 +281,21 @@ class EventSampler:
             )
         )
 
-    def sample_event(self, neurite):
-        """Sample one synthesis event for a neurite."""
+    def sample_event(self, section):
+        """Sample one synthesis event for a section."""
         
-        if not hasattr(neurite, "section_type"):
+        if not hasattr(section, "label"):
             raise TypeError(
-                "neurite must provide a section_type attribute."
+                "section must provide a label attribute."
             )
 
-        if neurite.section_type == "soma":
+        if section.label == "soma":
             raise RuntimeError(
                 "Cannot sample a synthesis event for the soma."
             )
         
         probabilities = np.asarray(
-            self._probability_fn(neurite),
+            self._probability_fn(section),
             dtype=float,
         )
 
@@ -339,8 +339,8 @@ class EventSampler:
 
         return self.EVENTS[event_index]
 
-    def sample_primary_neurite_count(self):
-        """Sample the number of primary neurites."""
+    def sample_primary_section_count(self):
+        """Sample the number of primary sections."""
         if self.init_count_cdf is None:
             raise RuntimeError(
                 "The primary-count distribution is unavailable."

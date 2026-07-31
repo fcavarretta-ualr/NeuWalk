@@ -16,7 +16,7 @@ def main():
             
     for r in roots.copy():
       for s in r.subtree:
-        if s.section_type in ["axon", "unknown"]:
+        if s.label in ["axon", "unknown"]:
           s.disconnect()
           continue
         

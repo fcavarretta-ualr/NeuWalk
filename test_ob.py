@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from neuwalk.io import read_swc
-from neuwalk.profiles import NeuriteProfile, connect_internal_branches
+from neuwalk.profiles import SectionProfile, connect_internal_branches
 from neuwalk.sampling import EventSampler
 from neuwalk.synthesis import TopologySynthesizer, MorphologySynthesizer
 from neuwalk.visualization import plot_morphology
@@ -20,7 +20,7 @@ import neuwalk.misc as misc
 
 def merge_profiles(profile_roots):
     # for non oblique, roots are attached to the soma          
-    profile_soma = NeuriteProfile(1, section_type="soma")
+    profile_soma = SectionProfile(1, label="soma")
     for root in profile_roots:
         root.connect(profile_soma, relation="parent")
     return profile_soma
@@ -29,7 +29,7 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
     topol_synthesizer = TopologySynthesizer(
         Random(seed),
         step_size=step_size,
-        section_type="apical_dendrite",
+        label="apical_dendrite",
         sholl_plot={'mean':[1,1], 'std':[0,0]},
         bin_size=np.linalg.norm(soma_position-glom_position),
         primary_count_range={"min":1, "max":1}
@@ -38,7 +38,7 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
     topol_synthesizer.synthesize()
 
 
-    # initializa the synthesizer for apical dendrites
+    # initializa the synthesizer for apical sections
     apical_synthesizer = MorphologySynthesizer(
         root=merge_profiles(topol_synthesizer.roots),
         rng=misc.Random(seed=seed),
@@ -51,14 +51,14 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
         max_angle=max_angle
     )
 
-    # synthesize apical dendrites
+    # synthesize apical sections
     soma = apical_synthesizer.synthesize()
 
-    # synthesize the tuft dendrites
+    # synthesize the tuft sections
     topol_synthesizer = TopologySynthesizer(
         Random(seed),
         step_size=step_size,
-        section_type="apical_dendrite",
+        label="apical_dendrite",
         sholl_plot={'mean':[5,10,20,40,80,80,40,20,10,5,0], 'std':[0,5,10,20,40,40,20,10,5,2.5,0]},
         bin_size=10,
         primary_count_range={"min":4, "max":6}
@@ -69,7 +69,7 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
 
     center = apical_synthesizer.soma.children[0].points[-1] + axis_direction * 50.0
 
-    # initializa the synthesizer for apical dendrites
+    # initializa the synthesizer for apical sections
     tuft_synthesizer = MorphologySynthesizer(
         root=merge_profiles(topol_synthesizer.roots),
         rng=misc.Random(seed=seed),
@@ -82,7 +82,7 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
         max_angle=max_angle
     )
 
-    # synthesize apical dendrites
+    # synthesize apical sections
     tuft_origin = tuft_synthesizer.synthesize()
     for ch in tuft_origin.children:
         ch.disconnect_from_parent()
@@ -136,7 +136,7 @@ def main():
     
     soma = generate_apical(args.seed, args.step_size, soma_position, glom_position, axis_direction, elongation_random_weight, max_angle)
     
-    # extract statistics for basal, apical, and oblique dendrites
+    # extract statistics for basal, apical, and oblique sections
     # param contains the sections to be discarded
     discarded_sections = {
       'basal_dendrite':["unknown", "apical_oblique", "apical_secondary_oblique", "apical_secondary_dendrite", "apical_dendrite", "axon"]
@@ -145,12 +145,12 @@ def main():
     # stat contains the statistics
 
     profiles = {}
-    for section_type, delete_section_types in discarded_sections.items():
-      print(f"Elaboration of {section_type}")
+    for label, delete_labels in discarded_sections.items():
+      print(f"Elaboration of {label}")
       
       print(f"\tExtracting statistics...", end="")
       params = extract_statistics(
-        load_morphologies(args.directory, delete_section_types=delete_section_types),
+        load_morphologies(args.directory, delete_labels=delete_labels),
         bin_size=args.bin_size)
       print("done")
 
@@ -164,7 +164,7 @@ def main():
             Random(args.seed),
             step_size=args.step_size,
             bin_size=args.bin_size,
-            section_type=section_type,
+            label=label,
             **params
         )
 
@@ -175,7 +175,7 @@ def main():
           verbose=args.verbose
       )
 
-      profiles[section_type] = topol_synthesizer.roots
+      profiles[label] = topol_synthesizer.roots
       print("done\n")
       print("Summary")
       print("---------------------------------------------------------")
@@ -199,7 +199,7 @@ def main():
     
     bifurcation_bias = biases.get_bifurcation("cross_torsion", np.pi / 3, space="ellipsoid", radii=radii)
 
-    # initializa the synthesizer for apical dendrites
+    # initializa the synthesizer for apical sections
     basal_synthesizer = MorphologySynthesizer(
         root=merge_profiles(profiles['basal_dendrite']),
         rng=misc.Random(seed=args.seed),
@@ -213,12 +213,12 @@ def main():
         max_angle=max_angle
     )
 
-    # synthesize apical dendrites
+    # synthesize apical sections
     basal_synthesizer.synthesize()
      
 
     
-    # unified basal and apical dendrites
+    # unified basal and apical sections
     for r in basal_synthesizer.soma.children:
         r.disconnect_from_parent()
         r.connect(soma, relation="parent")

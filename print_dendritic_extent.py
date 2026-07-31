@@ -6,21 +6,21 @@ import numpy as np
 
 import sys
 
-delete_section_types = ["unknown", "axon", "soma"]
+delete_labels = ["unknown", "axon", "soma"]
 
 directory = sys.argv[-2] 
-section_type = sys.argv[-1]
+label = sys.argv[-1]
 
-if section_type == "basal_dendrite":
-  delete_section_types.append("apical_dendrite")
-elif section_type == "apical_dendrite":
-  delete_section_types.append("basal_dendrite")
+if label == "basal_dendrite":
+  delete_labels.append("apical_dendrite")
+elif label == "apical_dendrite":
+  delete_labels.append("basal_dendrite")
 else:
-  print(f"Unknown section type {section_type}")
+  print(f"Unknown label {label}")
 
 total = []
-for m in morphologies.load_morphologies(directory, delete_section_types=delete_section_types):
-  s = sum(r.total_length  for r in m if r.section_type == section_type)
+for m in morphologies.load_morphologies(directory, delete_labels=delete_labels):
+  s = sum(r.total_length  for r in m if r.label == label)
   if np.isnan(s):
     continue
   total.append(s)

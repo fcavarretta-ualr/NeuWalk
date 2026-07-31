@@ -3,7 +3,7 @@ import numpy as np
 
 def synthesize_progressive(tree, n_std=1.0, max_attempts_per_window=10, max_total_attempts=1000, verbose=False):
     """
-    Synthesize a neurite tree progressively while enforcing Sholl constraints.
+    Synthesize a section tree progressively while enforcing Sholl constraints.
 
     The tree is generated one Sholl bin at a time. After each bin is synthesized,
     its number of Sholl intersections is compared with the allowed interval:
@@ -31,7 +31,7 @@ def synthesize_progressive(tree, n_std=1.0, max_attempts_per_window=10, max_tota
 
     Parameters
     ----------
-    tree : NeuriteTreeProfile
+    tree : SectionTreeProfile
         Tree to synthesize. It must provide:
 
         - ``sholl_plot_constraint["mean"]`` and ``["std"]``
@@ -62,7 +62,7 @@ def synthesize_progressive(tree, n_std=1.0, max_attempts_per_window=10, max_tota
 
     Returns
     -------
-    NeuriteProfile or list
+    SectionProfile or list
         ``tree.soma`` if ``tree.with_soma`` is True, otherwise the
         synthesized primary roots stored in ``tree.roots``.
 
@@ -82,7 +82,7 @@ def synthesize_progressive(tree, n_std=1.0, max_attempts_per_window=10, max_tota
 
     Notes
     -----
-    Bin zero initializes the primary neurites using
+    Bin zero initializes the primary sections using
     ``tree.synthesize(max_steps=0)``. Every subsequent bin advances synthesis
     by ``ceil(bin_size / step_size)`` steps.
     """
@@ -156,7 +156,7 @@ def _regenerate_window(tree, start_bin, target_bin, mean, std, n_std, bin_size, 
     extra rollback here would just be immediately undone.
     """
     for bin_index in range(start_bin, target_bin + 1):
-        # Bin 0 initializes the primary neurites.
+        # Bin 0 initializes the primary sections.
         tree.synthesize(distance_limit=0 if bin_index == 0 else (bin_size * bin_index))
 
         valid, generated, lower, upper = _sholl_status(tree, bin_index, mean, std, n_std, bin_size)

@@ -9,20 +9,20 @@ import numpy as np
 from neuwalk.io import read_swc
 
 
-def iter_sections(roots, section_types=None):
+def iter_sections(roots, labels=None):
     """Yield selected sections from all roots."""
     for root in roots:
         for section in root.subtree:
             if (
-                section_types is None
-                or section.section_type in section_types
+                labels is None
+                or section.label in labels
             ):
                 yield section
 
 
-def iter_segments(roots, section_types=None):
+def iter_segments(roots, labels=None):
     """Yield geometric segments belonging to selected sections."""
-    for section in iter_sections(roots, section_types):
+    for section in iter_sections(roots, labels):
         points = np.asarray(section.points, dtype=float)
 
         for point_0, point_1 in zip(points[:-1], points[1:]):
@@ -40,28 +40,28 @@ def iter_segments(roots, section_types=None):
             yield section.parent.points[-1], points[0]
 
 
-def total_length(roots, section_types=None):
+def total_length(roots, labels=None):
     """Return total length of selected sections."""
     return sum(
         np.linalg.norm(point_1 - point_0)
         for point_0, point_1 in iter_segments(
             roots,
-            section_types,
+            labels,
         )
     )
 
 
-def bifurcation_count(roots, section_types=None):
+def bifurcation_count(roots, labels=None):
     """Return the number of bifurcations among selected sections."""
     count = 0
 
-    for section in iter_sections(roots, section_types):
+    for section in iter_sections(roots, labels):
         selected_children = [
             child
             for child in section.children
             if (
-                section_types is None
-                or child.section_type in section_types
+                labels is None
+                or child.label in labels
             )
         ]
 
@@ -73,7 +73,7 @@ def bifurcation_count(roots, section_types=None):
 def sholl_plot(
     roots,
     bin_size,
-    section_types=None,
+    labels=None,
     max_distance=None,
 ):
     """Return Sholl radii and intersection counts."""
@@ -87,7 +87,7 @@ def sholl_plot(
         return np.zeros(0), np.zeros(0, dtype=int)
 
     center = np.asarray(centers[0], dtype=float)
-    segments = list(iter_segments(roots, section_types))
+    segments = list(iter_segments(roots, labels))
 
     if not segments:
         return np.zeros(0), np.zeros(0, dtype=int)
@@ -152,11 +152,11 @@ def main():
         help="SWC file or directory containing SWC files.",
     )
     parser.add_argument(
-        "--section-types",
+        "--labels",
         type=str,
         nargs="+",
         default=None,
-        help="Optional SWC section types to include, e.g. 3 4.",
+        help="Optional SWC labels to include, e.g. 3 4.",
     )
     parser.add_argument(
         "--bin-size",
@@ -204,20 +204,20 @@ def main():
         radii, counts = sholl_plot(
             roots,
             bin_size=args.bin_size,
-            section_types=args.section_types,
+            labels=args.labels,
         )
 
         sholl_data.append((filename.stem, radii, counts))
         branch_counts.append(
             bifurcation_count(
                 roots,
-                section_types=args.section_types,
+                labels=args.labels,
             )
         )
         lengths.append(
             total_length(
                 roots,
-                section_types=args.section_types,
+                labels=args.labels,
             )
         )
 
@@ -298,9 +298,9 @@ def main():
     axes[2].set_ylabel("Morphologies")
 
     section_label = (
-        "all section types"
-        if args.section_types is None
-        else f"section types: {args.section_types}"
+        "all labels"
+        if args.labels is None
+        else f"labels: {args.labels}"
     )
 
     figure.suptitle(

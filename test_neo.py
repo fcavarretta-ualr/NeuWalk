@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from neuwalk.io import read_swc
-from neuwalk.profiles import NeuriteProfile, connect_internal_branches
+from neuwalk.profiles import SectionProfile, connect_internal_branches
 from neuwalk.sampling import EventSampler
 from neuwalk.synthesis import TopologySynthesizer, MorphologySynthesizer
 from neuwalk.visualization import plot_morphology
@@ -20,7 +20,7 @@ import neuwalk.misc as misc
 
 def merge_profiles(profile_roots):
     # for non oblique, roots are attached to the soma          
-    profile_soma = NeuriteProfile(1, section_type="soma")
+    profile_soma = SectionProfile(1, label="soma")
     for root in profile_roots:
         root.connect(profile_soma, relation="parent")
     return profile_soma
@@ -39,7 +39,7 @@ def main():
     args = parser.parse_args()
 
 
-    # extract statistics for basal, apical, and oblique dendrites
+    # extract statistics for basal, apical, and oblique sections
     # param contains the sections to be discarded
     discarded_sections = {
       'basal_dendrite':["unknown", "apical_oblique", "apical_secondary_oblique", "apical_secondary_dendrite", "soma", "apical_dendrite"],
@@ -50,12 +50,12 @@ def main():
     # stat contains the statistics
 
     profiles = {}
-    for section_type, delete_section_types in discarded_sections.items():
-      print(f"Elaboration of {section_type}")
+    for label, delete_labels in discarded_sections.items():
+      print(f"Elaboration of {label}")
       
       print(f"\tExtracting statistics...", end="")
       params = extract_statistics(
-        load_morphologies(args.directory, delete_section_types=delete_section_types),
+        load_morphologies(args.directory, delete_labels=delete_labels),
         bin_size=args.bin_size)
       print("done")
 
@@ -69,7 +69,7 @@ def main():
             Random(args.seed),
             step_size=args.step_size,
             bin_size=args.bin_size,
-            section_type=section_type,
+            label=label,
             **params
         )
 
@@ -80,7 +80,7 @@ def main():
           verbose=args.verbose
       )
 
-      profiles[section_type] = topol_synthesizer.roots
+      profiles[label] = topol_synthesizer.roots
       print("done\n")
       print("Summary")
       print("---------------------------------------------------------")
@@ -88,10 +88,10 @@ def main():
       print("---------------------------------------------------------\n\n")
         
 
-    # extract the density of internal dendrites (i.e., branch points from obliques originate)
+    # extract the density of internal sections (i.e., branch points from obliques originate)
     bifurcation_internal_density =  extract_statistics(
       load_morphologies(args.directory,
-                        delete_section_types=["unknown",  "apical_secondary_oblique", "apical_secondary_dendrite", "basal_dendrite", "soma"]),
+                        delete_labels=["unknown",  "apical_secondary_oblique", "apical_secondary_dendrite", "basal_dendrite", "soma"]),
       bin_size=args.bin_size)['bifurcation_internal_density']
     
 
@@ -122,7 +122,7 @@ def main():
     bifurcation_bias = biases.get_bifurcation("radial_torsion", np.pi / 3)
     bifurcation_internal_bias = biases.get_bifurcation("internal_branch", np.pi / 2)  
 
-    # initializa the synthesizer for apical dendrites
+    # initializa the synthesizer for apical sections
     apic_synthesizer = MorphologySynthesizer(
         root=merge_profiles(profiles['apical_dendrite']),
         rng=misc.Random(seed=args.seed),
@@ -136,17 +136,17 @@ def main():
         max_angle=max_angle
     )
 
-    # synthesize apical dendrites
+    # synthesize apical sections
     apic_synthesizer.synthesize()
 
 
-    # generate the second order (i.e., oblique dendrites)
+    # generate the second order (i.e., oblique sections)
     elongation_bias = [
       (0.5, biases.get_elongation("root_repulsion", 100, -1)),
       (0.002, r)
       ]
 
-    # update some parameters for the oblique dendrites
+    # update some parameters for the oblique sections
     apic_synthesizer.synthesize(
       is_root_like=True,
       elongation_bias=elongation_bias,
@@ -154,7 +154,7 @@ def main():
     
   
 
-    # synthesize apical dendrites        
+    # synthesize apical sections        
     basal_synthesizer = MorphologySynthesizer(
         root=merge_profiles(profiles['basal_dendrite']),
         rng=misc.Random(seed=args.seed),
@@ -170,7 +170,7 @@ def main():
 
     soma = basal_synthesizer.soma.clone()
     
-    # unified basal and apical dendrites
+    # unified basal and apical sections
     for r in basal_synthesizer.soma.children + apic_synthesizer.soma.children:
         r.disconnect_from_parent()
         r.connect(soma, relation="parent")

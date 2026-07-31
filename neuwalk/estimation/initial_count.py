@@ -7,10 +7,10 @@ import pyomo.environ as pyo
 
 
 def initial_count_pmf(
-    mean_primary_dendrites: float,
-    sd_primary_dendrites: float,
-    min_primary_dendrites: int,
-    max_primary_dendrites: int,
+    mean_primary_sections: float,
+    sd_primary_sections: float,
+    min_primary_sections: int,
+    max_primary_sections: int,
     *,
     support_values: Optional[Sequence[float]] = None,
     epsilon: float = 1e-12,
@@ -21,11 +21,11 @@ def initial_count_pmf(
     solver_options: Optional[Dict[str, Union[str, int, float]]] = None,
 ) -> np.ndarray:
     """
-    Maximum-entropy PMF for the (discrete) number of primary dendrites.
+    Maximum-entropy PMF for the (discrete) number of primary sections.
 
-    This returns a numpy array p of length n = max_primary_dendrites + 1, where:
-      - p[i] is the probability of observing i primary dendrites
-      - p[i] = 0 for i < min_primary_dendrites or i > max_primary_dendrites
+    This returns a numpy array p of length n = max_primary_sections + 1, where:
+      - p[i] is the probability of observing i primary sections
+      - p[i] = 0 for i < min_primary_sections or i > max_primary_sections
 
     The distribution is obtained by maximizing Shannon entropy:
         H(p) = -sum_i p[i] * log(p[i])
@@ -33,32 +33,32 @@ def initial_count_pmf(
     Subject to:
       - Normalization: sum_{i in [min,max]} p[i] = 1
       - Soft mean constraint (with slack):
-            sum i*p[i] - mean_primary_dendrites = slack_mean
+            sum i*p[i] - mean_primary_sections = slack_mean
       - Soft dispersion constraint (with slack):
         If use_variance_form=True (recommended):
-            sum (i-mean)^2 * p[i] - (sd_primary_dendrites^2) = slack_disp
+            sum (i-mean)^2 * p[i] - (sd_primary_sections^2) = slack_disp
         If use_variance_form=False:
-            sqrt( sum (i-mean)^2 * p[i] + tiny ) - sd_primary_dendrites = slack_disp
+            sqrt( sum (i-mean)^2 * p[i] + tiny ) - sd_primary_sections = slack_disp
 
     The objective is penalized to keep slacks small:
         maximize  H(p) - slack_penalty * (slack terms)
 
     Parameters
     ----------
-    mean_primary_dendrites : float
-        Target mean number of primary dendrites
-    sd_primary_dendrites : float
+    mean_primary_sections : float
+        Target mean number of primary sections
+    sd_primary_sections : float
         Target standard deviation (>= 0)
-    min_primary_dendrites : int
-        Minimum allowed dendrite count (inclusive)
-    max_primary_dendrites : int
-        Maximum allowed dendrite count (inclusive). Also sets array length n=max+1
+    min_primary_sections : int
+        Minimum allowed section count (inclusive)
+    max_primary_sections : int
+        Maximum allowed section count (inclusive). Also sets array length n=max+1
 
     Keyword-only parameters
     ----------------------
     support_values : Sequence[float] | None
         Optional support for indices 0..max. If None, uses support=i (integers).
-        Keep this None if you truly mean "i is the dendrite count".
+        Keep this None if you truly mean "i is the section count".
     epsilon : float
         Lower bound on active probabilities to avoid log(0)
     slack_penalty : float
@@ -75,7 +75,7 @@ def initial_count_pmf(
     Returns
     -------
     np.ndarray
-        Probability vector p with length max_primary_dendrites + 1
+        Probability vector p with length max_primary_sections + 1
 
     Raises
     ------
@@ -84,29 +84,29 @@ def initial_count_pmf(
     RuntimeError
         If the requested solver is not available
     """
-    if max_primary_dendrites < 0:
-        raise ValueError("max_primary_dendrites must be >= 0")
-    if sd_primary_dendrites < 0:
-        raise ValueError("sd_primary_dendrites must be nonnegative")
-    if not (0 <= min_primary_dendrites <= max_primary_dendrites):
-        raise ValueError("Require 0 <= min_primary_dendrites <= max_primary_dendrites")
+    if max_primary_sections < 0:
+        raise ValueError("max_primary_sections must be >= 0")
+    if sd_primary_sections < 0:
+        raise ValueError("sd_primary_sections must be nonnegative")
+    if not (0 <= min_primary_sections <= max_primary_sections):
+        raise ValueError("Require 0 <= min_primary_sections <= max_primary_sections")
     if slack_penalty <= 0:
         raise ValueError("slack_penalty must be positive")
     if epsilon <= 0:
         raise ValueError("epsilon must be positive")
 
-    n = max_primary_dendrites + 1
-    active = list(range(min_primary_dendrites, max_primary_dendrites + 1))
+    n = max_primary_sections + 1
+    active = list(range(min_primary_sections, max_primary_sections + 1))
 
     # Support values for each index i (default: i itself)
     if support_values is None:
         support_values = list(range(n))
     if len(support_values) != n:
-        raise ValueError("support_values must have length n = max_primary_dendrites + 1")
+        raise ValueError("support_values must have length n = max_primary_sections + 1")
 
     support = {i: float(support_values[i]) for i in range(n)}
-    mu = float(mean_primary_dendrites)
-    sd = float(sd_primary_dendrites)
+    mu = float(mean_primary_sections)
+    sd = float(sd_primary_sections)
     target_var = sd * sd
 
     # -----------------------------
@@ -196,11 +196,11 @@ def initial_count_pmf(
 
 
 if __name__ == "__main__":
-    p = maxent_primary_dendrite_pmf(
-        mean_primary_dendrites=2.33,
-        sd_primary_dendrites=1.53,
-        min_primary_dendrites=1,
-        max_primary_dendrites=4,
+    p = initial_count_pmf(
+        mean_primary_sections=2.33,
+        sd_primary_sections=1.53,
+        min_primary_sections=1,
+        max_primary_sections=4,
         slack_penalty=0.1,
         use_variance_form=True,
         use_abs_slack=False,
