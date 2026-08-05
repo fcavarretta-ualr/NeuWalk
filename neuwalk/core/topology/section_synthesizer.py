@@ -43,6 +43,34 @@ class SectionSynthesizer(SectionObject):
 
         return self.step_count * self.step_size
 
+    def set_order(self, order, labels=None):
+        """
+        Set ``order`` for this section and every matching section in its
+        subtree.
+
+        Parameters
+        ----------
+        order : int
+            Order value to assign throughout the subtree rooted at this
+            section.
+        labels : str or list of str, optional
+            Restrict the assignment to sections whose label is in
+            ``labels``. When omitted, every section in the subtree is set.
+        """
+        if labels is not None:
+            if isinstance(labels, str):
+                labels = [labels]
+            elif isinstance(labels, list):
+                for label in labels:
+                    if not isinstance(label, str):
+                        raise TypeError("Inappropriate label")
+            else:
+                raise TypeError("Inappropriate label: it should be a string or a list of strings")
+
+        for section in self.subtree:
+            if labels is None or section.label in labels:
+                section.order = order
+
 
     def create_primary_sections(self, number, label):
         """Create primary sections from the soma."""

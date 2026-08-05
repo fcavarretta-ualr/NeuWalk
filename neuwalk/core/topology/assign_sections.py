@@ -95,9 +95,6 @@ def connect_internal_branches(branches, targets, rng, density, bin_size):
         
     # increase the order of the obliques
     for branch, _ in connections:
-        branch.order = branch.parent.order + 1
-        for sub_branch in branch.subtree:
-          if sub_branch != branch:
-            sub_branch.order = branch.order
-            
+        branch.set_order(branch.parent.order + 1)
+
     return connections
