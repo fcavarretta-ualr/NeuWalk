@@ -6,9 +6,9 @@ from pathlib import Path
 import numpy as np
 
 from neuwalk.io import read_swc
-from neuwalk.profiles import SectionProfile
-from neuwalk.sampling import EventSampler
-from neuwalk.misc import Random
+from neuwalk.core.topology import SectionSynthesizer
+from neuwalk.synthesis.topology.sampling import EventSampler
+from neuwalk.random import Random
 
 
 def load_statistics(directory, bin_size):
@@ -91,7 +91,7 @@ def main():
         primary_count_range=stats["primary_count_range"],
     )
 
-    soma = SectionProfile(
+    soma = SectionSynthesizer(
         step_size=args.step_size,
         label="soma",
     )

@@ -6,8 +6,9 @@ from pathlib import Path
 import numpy as np
 
 from neuwalk.io import read_swc
-from neuwalk.profiles import SectionProfile
-from neuwalk.sampling import EventSampler
+from neuwalk.random import Random
+from neuwalk.core.topology import SectionSynthesizer
+from neuwalk.synthesis.topology.sampling import EventSampler
 from neuwalk.synthesis import TopologySynthesizer, TopologyGuidedSynthesizer
 
 
@@ -135,7 +136,7 @@ def load_statistics(directory, bin_size):
 
 
 def walk_factory(profile, parent_walk):
-    return RandomWalk(
+    return SectionSynthesizer(
         rng=rng,
         first_point=[0.0, 0.0, 0.0],
         step_size=profile.step_size,
@@ -158,7 +159,7 @@ def main():
         args.bin_size,
     )
 
-    rng = np.random.default_rng(args.seed)
+    rng = Random(args.seed)
 
     synthesizer = TopologySynthesizer(
         rng=rng,

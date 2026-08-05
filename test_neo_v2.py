@@ -6,22 +6,21 @@ from pathlib import Path
 import numpy as np
 
 from neuwalk.io import read_swc
-from neuwalk.profiles import SectionProfile, connect_internal_branches
-from neuwalk.sampling import EventSampler
+from neuwalk.core.topology import SectionSynthesizer, connect_internal_branches
+from neuwalk.synthesis.topology.sampling import EventSampler
 from neuwalk.synthesis import TopologySynthesizer, MorphologySynthesizer
 from neuwalk.visualization import plot_morphology
-import neuwalk.biases as biases
+import neuwalk.synthesis.morphology.biases as biases
 from neuwalk.analysis.morphologies import load_morphologies
 from neuwalk.analysis.extraction import extract_statistics
-from neuwalk.misc import Random
+from neuwalk.random import Random
 
-import neuwalk.misc as misc
 
 import json
 
 def merge_profiles(profile_roots):
     # for non oblique, roots are attached to the soma          
-    profile_soma = SectionProfile(1, label="soma")
+    profile_soma = SectionSynthesizer(1, label="soma")
     for root in profile_roots:
         root.connect(profile_soma, relation="parent")
     return profile_soma
@@ -133,7 +132,7 @@ def main():
     # initializa the synthesizer for apical sections
     apic_synthesizer = MorphologySynthesizer(
         root=merge_profiles(profiles['apical_dendrite']),
-        rng=misc.Random(seed=args.seed),
+        rng=Random(seed=args.seed),
         theta=0,
         phi=0,
         axis_direction=np.array([0.0, 0.0, 1.0]),
@@ -158,7 +157,7 @@ def main():
     # synthesize apical sections        
     basal_synthesizer = MorphologySynthesizer(
         root=merge_profiles(profiles['basal_dendrite']),
-        rng=misc.Random(seed=args.seed),
+        rng=Random(seed=args.seed),
         theta=(np.pi / 6, np.pi * 5 / 6),
         phi=(0, 2 * np.pi),
         axis_direction=np.array([0.0, 0.0, -1.0]),

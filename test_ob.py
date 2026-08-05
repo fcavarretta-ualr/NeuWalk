@@ -6,21 +6,21 @@ from pathlib import Path
 import numpy as np
 
 from neuwalk.io import read_swc
-from neuwalk.profiles import SectionProfile, connect_internal_branches
-from neuwalk.sampling import EventSampler
+from neuwalk.core.topology import SectionSynthesizer, connect_internal_branches
+from neuwalk.synthesis.topology.sampling import EventSampler
 from neuwalk.synthesis import TopologySynthesizer, MorphologySynthesizer
 from neuwalk.visualization import plot_morphology
-import neuwalk.biases as biases
+import neuwalk.synthesis.morphology.biases as biases
 from neuwalk.analysis.morphologies import load_morphologies
 from neuwalk.analysis.extraction import extract_statistics
-from neuwalk.misc import Random
+from neuwalk.random import Random
 
 import neuwalk.misc as misc
 
 
 def merge_profiles(profile_roots):
     # for non oblique, roots are attached to the soma          
-    profile_soma = SectionProfile(1, label="soma")
+    profile_soma = SectionSynthesizer(1, label="soma")
     for root in profile_roots:
         root.connect(profile_soma, relation="parent")
     return profile_soma
@@ -41,7 +41,7 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
     # initializa the synthesizer for apical sections
     apical_synthesizer = MorphologySynthesizer(
         root=merge_profiles(topol_synthesizer.roots),
-        rng=misc.Random(seed=seed),
+        rng=Random(seed=seed),
         theta=0,
         phi=0,
         origin=soma_position,
@@ -72,7 +72,7 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
     # initializa the synthesizer for apical sections
     tuft_synthesizer = MorphologySynthesizer(
         root=merge_profiles(topol_synthesizer.roots),
-        rng=misc.Random(seed=seed),
+        rng=Random(seed=seed),
         theta=0,
         phi=0,
         origin=apical_synthesizer.soma.children[0].points[-1],
@@ -202,7 +202,7 @@ def main():
     # initializa the synthesizer for apical sections
     basal_synthesizer = MorphologySynthesizer(
         root=merge_profiles(profiles['basal_dendrite']),
-        rng=misc.Random(seed=args.seed),
+        rng=Random(seed=args.seed),
         theta=primary_theta,
         phi=(0, 2 * np.pi),
         origin=soma_position,

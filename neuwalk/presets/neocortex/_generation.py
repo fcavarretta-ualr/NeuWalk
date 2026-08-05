@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
-from ... import misc
-from ...profiles import SectionProfile, connect_internal_branches
-from ... import biases
+from ...random import Random
+from ...core.topology import SectionSynthesizer, connect_internal_branches
+from ...synthesis.morphology import biases
 from .. import _common
 import numpy as np
 
@@ -43,7 +43,7 @@ def generate(seed, cell_type, **kwargs):
 
     # generate apical sections
     # connect obliques
-    connect_internal_branches(ret['apical_oblique']['topology'].roots, ret['apical_dendrite']['topology'].soma.children, misc.Random(seed), bifurcation_internal_density, bin_size)
+    connect_internal_branches(ret['apical_oblique']['topology'].roots, ret['apical_dendrite']['topology'].soma.children, Random(seed), bifurcation_internal_density, bin_size)
     
     # spatial bias is a composition of truncated cones
     spatial_bias = biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 0.]), (220., 0., 0.), (2.5, 2.5), (2.5, 2.5), 1, 1, strict=True) + \

@@ -1,9 +1,10 @@
 import json
 from pathlib import Path
 from ... import misc
-from ...profiles import SectionProfile, connect_internal_branches
+from ...random import Random
+from ...core.topology import SectionSynthesizer, connect_internal_branches
 from ...synthesis import TopologySynthesizer, MorphologySynthesizer
-from ... import biases
+from ...synthesis.morphology import biases
 from .. import _common
 import numpy as np
 
@@ -14,7 +15,7 @@ glom_radius = 50.
     
 def generate_apical(seed, step_size, soma_position, glom_position, axis_direction):
     topol_synthesizer = TopologySynthesizer(
-        misc.Random(seed),
+        Random(seed),
         step_size=step_size,
         label="apical_dendrite",
         sholl_plot={'mean':[1,1], 'std':[0,0]},
@@ -28,7 +29,7 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
     # initializa the synthesizer for apical sections
     apical_synthesizer = MorphologySynthesizer(
         topology=topol_synthesizer.soma,
-        rng=misc.Random(seed=seed),
+        rng=Random(seed=seed),
         theta=0,
         phi=0,
         origin=soma_position,
@@ -39,7 +40,7 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
 
     # synthesize the tuft sections
     topol_synthesizer = TopologySynthesizer(
-        misc.Random(seed),
+        Random(seed),
         step_size=step_size,
         label="apical_dendrite",
         sholl_plot={'mean':[5,10,20,40,80,80,40,20,10,5,0], 'std':[0,5,10,20,40,40,20,10,5,2.5,0]},
@@ -56,7 +57,7 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
     # initializa the synthesizer for apical sections
     tuft_synthesizer = MorphologySynthesizer(
         topology=topol_synthesizer.roots,
-        rng=misc.Random(seed=seed),
+        rng=Random(seed=seed),
         theta=0,
         phi=0,
         origin=apical_synthesizer.soma.children[0].points[-1],
@@ -152,7 +153,7 @@ def generate(seed, cell_type, **kwargs):
     basal_synthesizer = MorphologySynthesizer(
         origin=soma_position,
         topology=ret['basal_dendrite']['topology'].soma,
-        rng=misc.Random(seed),
+        rng=Random(seed),
         theta = primary_theta,
         phi=(0., 2 * np.pi),
         axis_direction=axis_direction,

@@ -6,8 +6,9 @@ from pathlib import Path
 import numpy as np
 
 from neuwalk.io import read_swc
-from neuwalk.profiles import SectionProfile
-from neuwalk.sampling import EventSampler
+from neuwalk.random import Random
+from neuwalk.core.topology import SectionSynthesizer
+from neuwalk.synthesis.topology.sampling import EventSampler
 from neuwalk.synthesis import TopologySynthesizer
 
 
@@ -150,7 +151,7 @@ def main():
         args.bin_size,
     )
 
-    rng = np.random.default_rng(args.seed)
+    rng = Random(args.seed)
 
     synthesizer = TopologySynthesizer(
         rng=rng,

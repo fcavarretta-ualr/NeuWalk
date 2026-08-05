@@ -5,7 +5,8 @@ import argparse
 import matplotlib.pyplot as plt
 import numpy as np
 
-from neuwalk.core.randomwalk import RandomWalk
+from neuwalk.core.morphology import SectionSynthesizer
+from neuwalk.random import Random
 
 
 def elongate(walk, steps):
@@ -17,7 +18,7 @@ def elongate(walk, steps):
 
 def build_test_tree(rng, step_size, centrifugal=False):
     """Create a small branching random-walk tree."""
-    root = RandomWalk(
+    root = SectionSynthesizer(
         rng=rng,
         first_point=np.zeros(3),
         step_size=step_size,
@@ -134,7 +135,7 @@ def run_checks(root):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Test and plot the RandomWalk object."
+        description="Test and plot the SectionSynthesizer object."
     )
     parser.add_argument(
         "--seed",
@@ -152,7 +153,7 @@ def main():
     )
     args = parser.parse_args()
 
-    rng = np.random.default_rng(args.seed)
+    rng = Random(args.seed)
 
     root = build_test_tree(
         rng=rng,

@@ -6,9 +6,9 @@ from pathlib import Path
 import numpy as np
 
 from neuwalk.io import read_swc
-from neuwalk.profiles import SectionProfile
-from neuwalk.sampling import EventSampler
-from neuwalk.misc import Random
+from neuwalk.core.topology import SectionSynthesizer
+from neuwalk.synthesis.topology.sampling import EventSampler
+from neuwalk.random import Random
 
 
 
@@ -70,7 +70,7 @@ def main():
     stats = load_statistics(args.directory, args.bin_size)
 
     rng = Random(1234)
-    section = SectionProfile(step_size=args.step_size, label="apical_dendrite")
+    section = SectionSynthesizer(step_size=args.step_size, label="apical_dendrite")
     sampler = EventSampler(
         rng=rng,
         step_size=args.step_size,

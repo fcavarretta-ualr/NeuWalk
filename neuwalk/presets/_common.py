@@ -1,4 +1,4 @@
-from .. import misc
+from ..random import Random
 from ..synthesis import TopologySynthesizer, MorphologySynthesizer
 
 
@@ -48,7 +48,7 @@ def synthesize_topologies(
             )
 
         topol_synthesizer = TopologySynthesizer(
-            misc.Random(seed),
+            Random(seed),
             step_size=step_size,
             label=label,
             **extra_kwargs,
@@ -96,7 +96,7 @@ def synthesize_section_tree(
     """
     synthesizer = MorphologySynthesizer(
         topology=ret[label]['topology'].soma,
-        rng=misc.Random(seed),
+        rng=Random(seed),
         theta=theta,
         phi=phi,
         axis_direction=axis_direction,

@@ -1,18 +1,5 @@
 import numpy as np
 
-import copy
-
-def permute(rng, vector):
-    vector = vector.copy()
-
-    ret = []
-
-    while len(vector):
-        i = int(rng.random() * len(vector))
-        ret.append(vector.pop(i))
-    return ret
-            
-
 def translate_points(points, source, target=None):
     """
     Translate points so that ``source`` is moved to ``target``.
@@ -41,59 +28,6 @@ def translate_points(points, source, target=None):
     source = source.copy()
     
     return [ p.copy() + target - source for p in points.copy() ] 
-
-class Random:
-    """Small wrapper around a random-number generator."""
-
-    def __init__(self, seed=None):
-        """
-        Parameters
-        ----------
-        seed : int, optional
-            Seed used to initialize the NumPy random-number generator.
-        """
-        self._rng = np.random.default_rng(seed)
-
-    def random(self, n=None):
-        """
-        Generate random values in the interval [0, 1).
-
-        Parameters
-        ----------
-        n : int, optional
-            Number of values to generate. When omitted, return a scalar.
-
-        Returns
-        -------
-        float or numpy.ndarray
-            One random value or an array with shape ``(n,)``.
-        """
-        if n is None:
-            return float(self._rng.random())
-
-        if not isinstance(n, (int, np.integer)):
-            raise TypeError("n must be an integer or None.")
-
-        if n < 0:
-            raise ValueError("n cannot be negative.")
-
-        return self._rng.random(n)
-
-    def clone(self):
-        """
-        Return a new Random object with the same internal state.
-
-        The clone produces the same future sequence as the original until
-        either object is advanced independently.
-        """
-        clone = self.__class__()
-        clone._rng.bit_generator.state = copy.deepcopy(
-            self._rng.bit_generator.state
-        )
-        return clone
-
-
-
 
 def to_unit_vector(vector):
     """Return a normalized 3D vector."""

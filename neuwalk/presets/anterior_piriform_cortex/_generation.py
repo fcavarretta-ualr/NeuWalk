@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
 from ... import misc
-from ...profiles import SectionProfile, connect_internal_branches
-from ... import biases
+from ...core.topology import SectionSynthesizer, connect_internal_branches
+from ...synthesis.morphology import biases
 from .. import _common
 import numpy as np
 

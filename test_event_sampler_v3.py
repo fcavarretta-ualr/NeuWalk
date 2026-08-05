@@ -6,8 +6,9 @@ from pathlib import Path
 import numpy as np
 
 from neuwalk.io import read_swc
-from neuwalk.profiles import SectionProfile
-from neuwalk.sampling import EventSampler
+from neuwalk.random import Random
+from neuwalk.core.topology import SectionSynthesizer
+from neuwalk.synthesis.topology.sampling import EventSampler
 
 
 def _pad(array, size):
@@ -149,7 +150,7 @@ def main():
         args.bin_size,
     )
 
-    rng = np.random.default_rng(args.seed)
+    rng = Random(args.seed)
 
     sampler = EventSampler(
         rng=rng,
@@ -165,7 +166,7 @@ def main():
         no_annihilation_bins=stats["no_annihilation_bins"],
     )
 
-    soma = SectionProfile(
+    soma = SectionSynthesizer(
         step_size=args.step_size,
         label="soma",
     )
