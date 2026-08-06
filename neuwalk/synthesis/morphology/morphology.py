@@ -9,7 +9,50 @@ from ...core.morphology import SectionSynthesizer as MorphologySectionSynthesize
 
 
 class MorphologySynthesizer:
-    """Generate MorphologySectionSynthesizer trajectories from a TopologySectionSynthesizer tree."""
+    """
+    Generate MorphologySectionSynthesizer trajectories from a
+    TopologySectionSynthesizer tree.
+
+    ``theta``, ``phi``, ``axis_direction``, ``elongation_bias``,
+    ``bifurcation_bias``, ``bifurcation_internal_bias``, ``centrifugal``,
+    ``max_angle``, ``elongation_random_weight``, and
+    ``elongation_bias_weight`` each accept either a single value (applied
+    regardless of label) or a dict mapping label to value, for example::
+
+        elongation_bias={
+            "apical_dendrite": apic_elongation_bias,
+            "basal_dendrite": basal_elongation_bias,
+            "apical_oblique": obl_elongation_bias,
+        }
+
+    Each section resolves its own value from these dicts using its own
+    label, falling back to a ``"default"`` entry if present, otherwise
+    raising ``KeyError``. All resolution happens inside this class: a
+    dict is never passed to ``MorphologySectionSynthesizer`` itself,
+    which only ever receives a single, already-resolved value for every
+    one of these parameters.
+
+    ``elongation_bias``, ``bifurcation_bias``, ``bifurcation_internal_bias``,
+    ``centrifugal``, ``max_angle``, ``elongation_random_weight``, and
+    ``elongation_bias_weight`` are resolved twice: once when each primary
+    section's ``MorphologySectionSynthesizer`` is constructed, and again
+    for any section created by a bifurcation, using that section's own
+    (possibly different) label, right after it is assigned. This is why
+    a section created by a bifurcation never silently keeps a value
+    meant for its parent's label.
+
+    ``theta``, ``phi``, and ``axis_direction`` are different: they
+    control how primary-section directions are generated jointly, before
+    any individual section exists, so they are resolved once, before any
+    section is constructed. Primary sections are grouped by label, and
+    each group's directions are generated together (evenly distributed
+    over that group's own ``theta``/``phi`` range, then rotated by that
+    group's own ``axis_direction``), independently from every other
+    label's group. This replaces the previous count-keyed convention for
+    ``theta``/``phi`` (a dict used to be keyed by the *number* of
+    primary sections; it is now keyed by *label*, like every other
+    resolvable parameter here).
+    """
     def _merge_profiles(self, profile_roots):
 
         assert sum(r.label != "soma" for r in profile_roots) == len(profile_roots), "Soma should be provided alone rather than inside a list"
@@ -20,6 +63,22 @@ class MorphologySynthesizer:
             root.connect(profile_soma, relation="parent")
             
         return profile_soma
+
+    @staticmethod
+    def _resolve(value, label):
+        """Return ``value`` as-is, or ``value[label]``/``value["default"]`` if it is a dict."""
+        if not isinstance(value, dict):
+            return value
+
+        if label in value:
+            return value[label]
+
+        if "default" in value:
+            return value["default"]
+
+        raise KeyError(
+            f"No entry for label {label!r} (and no 'default' entry) in {value!r}."
+        )
 
     def __init__(
         self,
@@ -52,26 +111,35 @@ class MorphologySynthesizer:
             Soma position. Default is ``[0, 0, 0]``.
         theta : float, sequence of two floats, or dict, optional
             Polar angle or angular range used to generate the primary
-            directions. A dictionary may map a primary-section count to a
-            dictionary containing ``theta`` and ``phi``. The ``"default"``
-            entry is used when the count is not present.
-        phi : float or sequence of two floats, optional
+            directions. May also be a dict mapping label to any of the
+            above, resolved per group of same-labeled primary sections
+            (see the class docstring).
+        phi : float, sequence of two floats, or dict, optional
             Azimuthal angle or angular range used to generate the primary
-            directions.
-        axis_direction : array_like, optional
+            directions. May also be a dict mapping label to any of the
+            above, resolved the same way as ``theta``.
+        axis_direction : array_like or dict, optional
             Direction of the local axial frame in global coordinates.
-        elongation_bias : ElongationBias or sequence, optional
-            Elongation bias or weighted elongation biases.
-        bifurcation_bias : BifurcationBias, optional
+            May also be a dict mapping label to direction.
+        elongation_bias : ElongationBias, sequence, or dict, optional
+            Elongation bias or weighted elongation biases. May also be a
+            dict mapping label to any of the above, resolved per section
+            by its own label (see the class docstring).
+        bifurcation_bias : BifurcationBias or dict, optional
             Bifurcation bias passed to each MorphologySectionSynthesizer.
-        centrifugal : bool, default True
-            Whether MorphologySectionSynthesizer displacement is centrifugal.
-        max_angle : float, default pi / 2
-            Maximum angle used when sampling elongation directions.
-        elongation_random_weight : float, default 1.0
-            Weight of the random elongation component.
-        elongation_bias_weight : float, default 1.0
-            Global weight applied to elongation biases.
+            May also be a dict mapping label to bias.
+        centrifugal : bool or dict, default True
+            Whether MorphologySectionSynthesizer displacement is
+            centrifugal. May also be a dict mapping label to bool.
+        max_angle : float or dict, default pi / 2
+            Maximum angle used when sampling elongation directions. May
+            also be a dict mapping label to angle.
+        elongation_random_weight : float or dict, default 1.0
+            Weight of the random elongation component. May also be a
+            dict mapping label to weight.
+        elongation_bias_weight : float or dict, default 1.0
+            Global weight applied to elongation biases. May also be a
+            dict mapping label to weight.
         parent : Section, optional
             Existing section that the primary sections will be connected
             to directly, as independent roots. This is unrelated to
@@ -103,7 +171,9 @@ class MorphologySynthesizer:
         if origin.shape != (3,):
             raise ValueError("origin must have shape (3,).")
 
-        if axis_direction is not None:
+        # axis_direction may be a dict (resolved per label later); only
+        # validate it now when it is an actual vector.
+        if axis_direction is not None and not isinstance(axis_direction, dict):
             axis_direction = np.asarray(axis_direction, dtype=float)
 
             if axis_direction.shape != (3,):
@@ -120,11 +190,14 @@ class MorphologySynthesizer:
         self.origin = origin.copy()
         self.theta = theta
         self.phi = phi
-        self.axis_direction = None if axis_direction is None else axis_direction.copy()
+        self.axis_direction = (
+            axis_direction if axis_direction is None or isinstance(axis_direction, dict)
+            else axis_direction.copy()
+        )
         self.elongation_bias = elongation_bias
         self.bifurcation_bias = bifurcation_bias
         self.bifurcation_internal_bias = bifurcation_internal_bias
-        self.centrifugal = bool(centrifugal)
+        self.centrifugal = bool(centrifugal) if not isinstance(centrifugal, dict) else centrifugal
         self.max_angle = max_angle
         self.elongation_random_weight = elongation_random_weight
         self.elongation_bias_weight = elongation_bias_weight
@@ -137,26 +210,33 @@ class MorphologySynthesizer:
         if parent is not None and parent.root.label == "soma":
             self.soma = parent.root
 
-    def _resolve_primary_angles(self, primary_count):
-        """Resolve theta and phi independently for the primary-section count."""
-        theta = self.theta
-        phi = self.phi
+    @property
+    def is_active(self):
+        """ check if there are active sections """
+        return len(self.active_sections)
 
-        if isinstance(theta, dict):
-            theta = theta.get(
-                primary_count,
-                theta["default"],
-            )
+    def _resolve_axis_direction(self, label):
+        """Resolve and validate ``axis_direction`` for ``label``."""
+        axis_direction = self._resolve(self.axis_direction, label)
 
-        if isinstance(phi, dict):
-            phi = phi.get(
-                primary_count,
-                phi["default"],
-            )
+        if axis_direction is None:
+            return None
 
-        return theta, phi
+        axis_direction = np.asarray(axis_direction, dtype=float)
 
-    def next_event(self, section):
+        if axis_direction.shape != (3,):
+            raise ValueError("axis_direction must have shape (3,).")
+
+        if np.isclose(np.linalg.norm(axis_direction), 0.0):
+            raise ValueError("axis_direction cannot be the zero vector.")
+
+        return axis_direction
+
+    def _resolve_primary_angles(self, label):
+        """Resolve theta and phi independently for the given label."""
+        return self._resolve(self.theta, label), self._resolve(self.phi, label)
+
+    def _next_event(self, section):
         """
         Return the next event for a profile/walk pair.
 
@@ -205,7 +285,7 @@ class MorphologySynthesizer:
         return len(self.active_sections) == 0
         
     def synthesize(self, max_steps=None, soma=None, **overrides):
-        """Generate all sections of the current minimum order."""
+        """Generate every section, processing one order at a time until none remain."""
         if max_steps is not None:
             if not isinstance(max_steps, int) or isinstance(max_steps, bool):
                 raise TypeError("max_steps must be an integer or None.")
@@ -231,30 +311,46 @@ class MorphologySynthesizer:
             else:
                 primary_profiles = [self.topology]
 
-            theta, phi = self._resolve_primary_angles(len(primary_profiles))
-            primary_directions = misc.sphere_surface_points(n=len(primary_profiles), theta=theta, phi=phi)
+            # group primary sections by label so theta/phi/axis_direction
+            # can be resolved (and each group's directions generated)
+            # independently per label
+            profiles_by_label = {}
+            for profile in primary_profiles:
+                profiles_by_label.setdefault(profile.label, []).append(profile)
 
-            if self.axis_direction is not None:
-                primary_directions = np.asarray([
-                    misc.AxialFrame.to_global(direction, self.axis_direction)
-                    for direction in primary_directions
-                ])
+            ordered_profiles = []
+            ordered_directions = []
 
-            for profile, initial_direction in zip(primary_profiles, primary_directions):
+            for label, profiles in profiles_by_label.items():
+                theta, phi = self._resolve_primary_angles(label)
+                directions = misc.sphere_surface_points(n=len(profiles), theta=theta, phi=phi)
+
+                axis_direction = self._resolve_axis_direction(label)
+
+                if axis_direction is not None:
+                    directions = np.asarray([
+                        misc.AxialFrame.to_global(direction, axis_direction)
+                        for direction in directions
+                    ])
+
+                ordered_profiles.extend(profiles)
+                ordered_directions.extend(directions)
+
+            for profile, initial_direction in zip(ordered_profiles, ordered_directions):
                 walk = MorphologySectionSynthesizer(
                     rng=self.rng,
                     step_size=profile.step_size,
                     origin=self.origin,
                     initial_direction=initial_direction,
-                    elongation_bias=self.elongation_bias,
-                    bifurcation_bias=self.bifurcation_bias,
-                    bifurcation_internal_bias=self.bifurcation_internal_bias,
-                    centrifugal=self.centrifugal,
+                    elongation_bias=self._resolve(self.elongation_bias, profile.label),
+                    bifurcation_bias=self._resolve(self.bifurcation_bias, profile.label),
+                    bifurcation_internal_bias=self._resolve(self.bifurcation_internal_bias, profile.label),
+                    centrifugal=self._resolve(self.centrifugal, profile.label),
                     parent=attachment,
                     label=profile.label,
-                    max_angle=self.max_angle,
-                    elongation_random_weight=self.elongation_random_weight,
-                    elongation_bias_weight=self.elongation_bias_weight,
+                    max_angle=self._resolve(self.max_angle, profile.label),
+                    elongation_random_weight=self._resolve(self.elongation_random_weight, profile.label),
+                    elongation_bias_weight=self._resolve(self.elongation_bias_weight, profile.label),
                 )
                 self.active_sections.setdefault(profile.order, []).append((profile, walk))
 
@@ -263,65 +359,76 @@ class MorphologySynthesizer:
 
             self.initialized = True
 
-        if not self.active_sections:
-            return self.roots if self.roots is not None else self.soma
+        # keep processing orders, lowest first, until none remain
+        while self.active_sections:
+            current_order = min(self.active_sections)
 
-        current_order = min(self.active_sections)
+            for _, walk in self.active_sections[current_order]:
+                # set eventual values for the sections
+                for name, value in overrides.items():
+                    setattr(walk, name, value)
+                walk.active = True
 
-        for _, walk in self.active_sections[current_order]:
-            # set eventual values for the sections
-            for name, value in overrides.items():
-                setattr(walk, name, value)
-            walk.active = True
+            step = 0
 
-        step = 0
+            while self.active_sections[current_order]:
+                if max_steps is not None and step >= max_steps:
+                    return self.roots if self.roots is not None else self.soma
 
-        while self.active_sections[current_order]:
-            if max_steps is not None and step >= max_steps:
-                return self.roots if self.roots is not None else self.soma
+                current_sections = self.active_sections[current_order]
+                self.active_sections[current_order] = []
 
-            current_sections = self.active_sections[current_order]
-            self.active_sections[current_order] = []
+                for section in current_sections:
+                    profile, walk = section
 
-            for section in current_sections:
-                profile, walk = section
+                    if not walk.active:
+                        continue
 
-                if not walk.active:
-                    continue
+                    event = self._next_event(section)
 
-                event = self.next_event(section)
+                    match event:
+                        case "elongate":
+                            walk.elongate()
+                            self.active_sections[current_order].append(section)
 
-                match event:
-                    case "elongate":
-                        walk.elongate()
-                        self.active_sections[current_order].append(section)
+                        case "bifurcate" | "bifurcate_internal":
+                            # select the bifurcation
+                            children = walk.bifurcate() if event == "bifurcate" else walk.bifurcate_internal()
 
-                    case "bifurcate" | "bifurcate_internal":
-                        # select the bifurcation
-                        children = walk.bifurcate() if event == "bifurcate" else walk.bifurcate_internal()
+                            # handle children
+                            for child_profile, child_walk in zip(profile.children, children):                                
+                                    
+                                # label may change
+                                child_walk.label = child_profile.label
 
-                        # handle children
-                        for child_profile, child_walk in zip(profile.children, children):                                
-                                
-                            # label may change
-                            child_walk.label = child_profile.label
+                                # re-resolve every walk-level parameter for the
+                                # (possibly new) label, rather than silently
+                                # keeping whatever the parent had
+                                child_walk.elongation_bias = self._resolve(self.elongation_bias, child_walk.label)
+                                child_walk.bifurcation_bias = self._resolve(self.bifurcation_bias, child_walk.label)
+                                child_walk.bifurcation_internal_bias = self._resolve(self.bifurcation_internal_bias, child_walk.label)
+                                child_walk.centrifugal = self._resolve(self.centrifugal, child_walk.label)
+                                child_walk.max_angle = self._resolve(self.max_angle, child_walk.label)
+                                child_walk.elongation_random_weight = self._resolve(self.elongation_random_weight, child_walk.label)
+                                child_walk.elongation_bias_weight = self._resolve(self.elongation_bias_weight, child_walk.label)
 
-                            # add sections
-                            self.active_sections.setdefault(child_profile.order, []).append((child_profile, child_walk))                  
-                        
-                    case "annihilate":
-                        walk.annihilate()
+                                # add sections
+                                self.active_sections.setdefault(child_profile.order, []).append((child_profile, child_walk))                  
+                            
+                        case "annihilate":
+                            walk.annihilate()
 
-                    case _:
-                        raise RuntimeError(f"Unknown synthesis event: {event!r}.")
+                        case _:
+                            raise RuntimeError(f"Unknown synthesis event: {event!r}.")
 
-            for _, walk in current_sections:
-                if walk.pending_event:
-                    walk.update_state()
+                for _, walk in current_sections:
+                    if walk.pending_event:
+                        walk.update_state()
 
-            step += 1
+                step += 1
 
-        del self.active_sections[current_order]
+            del self.active_sections[current_order]
+
         return self.roots if self.roots is not None else self.soma
 
     def describe(self):

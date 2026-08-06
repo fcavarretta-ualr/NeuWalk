@@ -1,7 +1,9 @@
 import json
 from pathlib import Path
 from ... import misc
-from ...core.topology import SectionSynthesizer, connect_internal_branches
+from ...random import Random
+from ...core.topology import SectionSynthesizer, connect_internal_branches, merge_trees
+from ...synthesis import MorphologySynthesizer
 from ...synthesis.morphology import biases
 from .. import _common
 import numpy as np
@@ -39,9 +41,12 @@ def generate(seed, cell_type, **kwargs):
         verbose,
     )
 
+   
+
     
     # spatial bias is a composition of truncated cones
-    spatial_bias = biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 0.]), (1100., 0., 0.), (2.5, 2.5), (25.0, 300.0), 1, 1)
+    apical_spatial_bias = biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 0.]), (1100., 0., 0.), (2.5, 2.5), (25.0, 300.0), 1, 1)
+    basal_spatial_bias = biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 0.]), (-1100., 0., 0.), (2.5, 2.5), (25.0, 300.0), 1, 1)
 
     # create self-avoidance bias
     section_bias = biases.get_elongation("sibling_repulsion", 25.0, -2) +\
@@ -49,55 +54,54 @@ def generate(seed, cell_type, **kwargs):
 
     # somatic repulsion
     somatic_bias = biases.get_elongation("root_repulsion", 750.0, -2)
-    # compose the biases into the elongation bias
-    elongation_bias = [
-      (0.25, spatial_bias),
+
+    # compose the biases into the elongation bias, one per label
+    apical_elongation_bias = [
+      (0.25, apical_spatial_bias),
+      (0.005, section_bias),
+      (0.2, somatic_bias)
+      ]
+
+    basal_elongation_bias = [
+      (0.25, basal_spatial_bias),
       (0.005, section_bias),
       (0.2, somatic_bias)
       ]
     
     # bifurcation biases
     bifurcation_bias = biases.get_bifurcation("radial_torsion", np.pi / 3)
-    
 
-    # initialize and synthesize the apical sections
-    apic_synthesizer = _common.synthesize_section_tree(
-        ret,
-        seed,
-        label='apical_dendrite',
-        theta={0:0, "default":np.pi / 3},
-        phi=0,
-        axis_direction=np.array([0.0, 0.0, 1.0]),
-        bifurcation_bias=bifurcation_bias,
-        elongation_bias=elongation_bias,
-    )
-
-    # spatial bias is a composition of truncated cones
-    spatial_bias = biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 0.]), (-1100., 0., 0.), (2.5, 2.5), (25.0, 300.0), 1, 1)    
-    elongation_bias = [
-      (0.25, spatial_bias),
-      (0.005, section_bias),
-      (0.2, somatic_bias)
-      ]    
-     
-    # initialize and synthesize the basal sections
-    basal_synthesizer = _common.synthesize_section_tree(
-        ret,
-        seed,
-        label='basal_dendrite',
-        theta=(0, np.pi / 2),
-        phi=(0, 2 * np.pi),
-        axis_direction=np.array([0.0, 0.0, -1.0]),
-        bifurcation_bias=bifurcation_bias,
-        elongation_bias=elongation_bias,
-        soma=apic_synthesizer.soma,
+    # merge apical's and basal's topologies so a single
+    # MorphologySynthesizer can grow both labels together
+    merged_topology = merge_trees(
+        ret['apical_dendrite']['topology'].soma,
+        ret['basal_dendrite']['topology'].soma,
     )
     
+    merged_topology.set_order(0, labels='apical_dendrite')
+    merged_topology.set_order(1, labels='basal_dendrite')
+    
+    synthesizer = MorphologySynthesizer(
+        topology=merged_topology,
+        rng=Random(seed),
+        theta={'apical_dendrite': np.pi / 3, 'basal_dendrite': (0, np.pi / 2)},
+        phi={'apical_dendrite': 0, 'basal_dendrite': (0, 2 * np.pi)},
+        axis_direction={
+            'apical_dendrite': np.array([0.0, 0.0, 1.0]),
+            'basal_dendrite': np.array([0.0, 0.0, -1.0]),
+        },
+        bifurcation_bias=bifurcation_bias,
+        elongation_bias={'apical_dendrite': apical_elongation_bias, 'basal_dendrite': basal_elongation_bias},
+    )
+
+    # synthesize() now runs both orders (apical, then basal) to
+    # completion in a single call
+    synthesizer.synthesize()
+
 
 
     # return information
-    ret['apical_dendrite']['morphology'] = apic_synthesizer
-    ret['basal_dendrite']['morphology'] = basal_synthesizer
-    ret['output'] = basal_synthesizer.soma
+    ret['synthesizer'] = synthesizer
+    ret['output'] = synthesizer.soma
     
     return ret

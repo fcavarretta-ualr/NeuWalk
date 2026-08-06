@@ -1,7 +1,8 @@
 import json
 from pathlib import Path
 from ...random import Random
-from ...core.topology import SectionSynthesizer, connect_internal_branches
+from ...core.topology import SectionSynthesizer, connect_internal_branches, merge_trees
+from ...synthesis import MorphologySynthesizer
 from ...synthesis.morphology import biases
 from .. import _common
 import numpy as np
@@ -42,7 +43,8 @@ def generate(seed, cell_type, **kwargs):
     )
 
     # generate apical sections
-    # connect obliques
+    # connect obliques (before merging, while apical's topology soma
+    # still only has apical's own primary sections as children)
     connect_internal_branches(ret['apical_oblique']['topology'].roots, ret['apical_dendrite']['topology'].soma.children, Random(seed), bifurcation_internal_density, bin_size)
     
     # spatial bias is a composition of truncated cones
@@ -61,12 +63,17 @@ def generate(seed, cell_type, **kwargs):
     # plane boundary, push the distal apical sections to bend
     plane_bias = biases.get_elongation("plane_boundary", np.array([0., 0., 900.]), (np.pi, 0.), 10, -2)
 
-    # compose the biases into the elongation bias
-    elongation_bias = [
+    # compose the biases into the elongation bias, one per label
+    apical_elongation_bias = [
       (0.25, spatial_bias),
       (0.005, section_bias),
       (0.2, somatic_bias),
       (0.1, plane_bias)
+      ]
+
+    basal_elongation_bias = [
+      (0.005, section_bias),
+      (0.2, somatic_bias)
       ]
 
     # bifurcation biases
@@ -74,50 +81,48 @@ def generate(seed, cell_type, **kwargs):
     
     bifurcation_internal_bias = biases.get_bifurcation("internal_branch", np.pi / 2)  
 
-    # initialize and synthesize the apical sections
-    apic_synthesizer = _common.synthesize_section_tree(
-        ret,
-        seed,
-        label='apical_dendrite',
-        theta=0,
-        phi=0,
-        axis_direction=np.array([0.0, 0.0, 1.0]),
-        bifurcation_bias=bifurcation_bias,
-        bifurcation_internal_bias=bifurcation_internal_bias,
-        elongation_bias=elongation_bias,
+    # merge apical's and basal's topologies so a single
+    # MorphologySynthesizer can grow both labels together
+    merged_topology = merge_trees(
+        ret['apical_dendrite']['topology'].soma,
+        ret['basal_dendrite']['topology'].soma,
     )
-    
-    # synthesize basal sections   
-    elongation_bias = [
-      (0.005, section_bias),
-      (0.2, somatic_bias)
-      ]
-    
-     
-    # initialize and synthesize the basal sections
-    basal_synthesizer = _common.synthesize_section_tree(
-        ret,
-        seed,
-        label='basal_dendrite',
-        theta=(np.pi / 6, np.pi * 5 / 6),
-        phi=(0, 2 * np.pi),
-        axis_direction=np.array([0.0, 0.0, -1.0]),
+
+    # set explicit orders so each label gets its own synthesize() pass:
+    # apical trunk, then basal trunk, then the grafted obliques
+    merged_topology.set_order(0, labels='apical_dendrite')
+    merged_topology.set_order(1, labels='basal_dendrite')
+    merged_topology.set_order(2, labels='apical_oblique')
+
+    synthesizer = MorphologySynthesizer(
+        topology=merged_topology,
+        rng=Random(seed),
+        theta={'apical_dendrite': 0, 'basal_dendrite': (np.pi / 6, np.pi * 5 / 6)},
+        phi={'apical_dendrite': 0, 'basal_dendrite': (0, 2 * np.pi)},
+        axis_direction={
+            'apical_dendrite': np.array([0.0, 0.0, 1.0]),
+            'basal_dendrite': np.array([0.0, 0.0, -1.0]),
+        },
         bifurcation_bias=bifurcation_bias,
-        elongation_bias=elongation_bias,
-        soma=apic_synthesizer.soma,
+        bifurcation_internal_bias={'apical_dendrite': bifurcation_internal_bias, 'default': None},
+        elongation_bias={
+            'apical_dendrite': apical_elongation_bias,
+            'basal_dendrite': basal_elongation_bias,
+            # re-use basal's bias for obliques, same as before; needed
+            # here (not just at the third synthesize() call) because a
+            # child's label is resolved as soon as the internal branch
+            # point is reached, during the very first (order 0) pass
+            'apical_oblique': basal_elongation_bias,
+        },
     )
-    
-    # re-use the same bias used for basal sections to generate oblique apical sections
-    # the option is_root_like make the first branch as a root
-    apic_synthesizer.synthesize(
-      is_root_like=True,
-      elongation_bias=elongation_bias,
-      )
+
+    # synthesize() now runs every order (apical, basal, then the
+    # grafted obliques) to completion in a single call
+    synthesizer.synthesize()
 
 
     # return information
-    ret['apical_dendrite']['morphology'] = apic_synthesizer
-    ret['basal_dendrite']['morphology'] = basal_synthesizer
-    ret['output'] = basal_synthesizer.soma
+    ret['synthesizer'] = synthesizer
+    ret['output'] = synthesizer.soma
     
     return ret

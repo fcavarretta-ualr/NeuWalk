@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from ... import misc
 from ...random import Random
-from ...core.topology import SectionSynthesizer, connect_internal_branches
+from ...core.topology import SectionSynthesizer, connect_internal_branches, merge_trees
 from ...synthesis import TopologySynthesizer, MorphologySynthesizer
 from ...synthesis.morphology import biases
 from .. import _common
@@ -37,7 +37,8 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
         elongation_bias=biases.get_elongation("attraction", None, None, glom_position)
     )
 
-
+    apical_synthesizer.synthesize()
+    
     # synthesize the tuft sections
     topol_synthesizer = TopologySynthesizer(
         Random(seed),
@@ -68,7 +69,7 @@ def generate_apical(seed, step_size, soma_position, glom_position, axis_directio
 
     tuft_synthesizer.synthesize()
 
-    return apical_synthesizer.soma.children[0]
+    return apical_synthesizer
 
     
 def generate(seed, cell_type, **kwargs):
@@ -116,7 +117,10 @@ def generate(seed, cell_type, **kwargs):
     glom_position = misc.EllipsoidalCoordinates.to_cartesian((1 + 25 / 300.0, theta, phi), radii)
     axis_direction = misc.to_unit_vector(misc.EllipsoidalCoordinates.to_cartesian((1, theta, phi), radii))
 
-    
+    # generate apical and tuft dendrites
+    apical_synthesizer = generate_apical(seed, step_size, soma_position, glom_position, axis_direction)
+
+
     # density of oblique branch points
     #bifurcation_internal_density = all_params.pop("bifurcation_internal_density")
 
@@ -158,21 +162,20 @@ def generate(seed, cell_type, **kwargs):
         phi=(0., 2 * np.pi),
         axis_direction=axis_direction,
         bifurcation_bias=bifurcation_bias,
-        elongation_bias=elongation_bias
+        elongation_bias=elongation_bias,
     )
 
     # synthesize apical sections
     basal_synthesizer.synthesize()
 
 
-    soma_apical = generate_apical(seed, step_size, soma_position, glom_position, axis_direction)
+    # attach apical dendrite
+    apical_dendrite = apical_synthesizer.soma.children[0]
+    apical_dendrite.disconnect_from_parent()
+    apical_dendrite.connect(basal_synthesizer.soma, relation="parent")
 
-    for ch in soma_apical.children:
-        ch.disconnect_from_parent()
-        ch.connect(basal_synthesizer.soma, relation="parent")
 
     # return information
-    ret['basal_dendrite']['morphology'] = basal_synthesizer
     ret['output'] = basal_synthesizer.soma
     
     return ret
