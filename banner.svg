@@ -1,0 +1,72 @@
+<svg width="1200" height="300" viewBox="0 0 1200 300" xmlns="http://www.w3.org/2000/svg" role="img">
+<title>NeuWalk</title>
+<desc>The NeuWalk wordmark beside a sketch of a person walking through a forest where each tree is drawn as a neuron.</desc>
+<defs>
+<style>
+  .ink { fill: none; stroke: #3A3A38; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+  .ink-thin { fill: none; stroke: #3A3A38; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .soma { fill: #EFE6D8; stroke: #3A3A38; stroke-width: 2.5; }
+  .ground { stroke: #3A3A38; stroke-width: 2; }
+  .title { fill: #3A3A38; font-family: Georgia, 'Times New Roman', serif; font-size: 64px; }
+  .tagline { fill: #6B6A64; font-family: Georgia, 'Times New Roman', serif; font-size: 18px; font-style: italic; }
+  @media (prefers-color-scheme: dark) {
+    .ink, .ink-thin, .ground { stroke: #D8D4C8; }
+    .soma { fill: #4A4640; stroke: #D8D4C8; }
+    .title { fill: #EDEAE2; }
+    .tagline { fill: #ADAA9F; }
+  }
+</style>
+</defs>
+
+<text class="title" x="40" y="130">NeuWalk</text>
+<text class="tagline" x="42" y="160">neuron morphology synthesis</text>
+
+<line class="ground" x1="30" y1="255" x2="1170" y2="255"/>
+
+<!-- tree A, small -->
+<line class="ink-thin" x1="470" y1="255" x2="470" y2="207"/>
+<path class="ink-thin" d="M470,207 L455,185 L445,165"/>
+<path class="ink-thin" d="M470,207 L473,180 L478,155"/>
+<path class="ink-thin" d="M470,207 L490,188 L505,168"/>
+<circle class="soma" cx="470" cy="207" r="10"/>
+
+<!-- walking figure -->
+<circle class="ink" cx="552" cy="152" r="11"/>
+<line class="ink" x1="552" y1="163" x2="552" y2="205"/>
+<line class="ink" x1="552" y1="170" x2="530" y2="190"/>
+<line class="ink" x1="552" y1="170" x2="576" y2="196"/>
+<line class="ink" x1="552" y1="205" x2="530" y2="253"/>
+<line class="ink" x1="552" y1="205" x2="580" y2="253"/>
+
+<!-- tree B, large focal tree -->
+<line class="ink" x1="635" y1="255" x2="635" y2="168"/>
+<path class="ink" d="M635,150 L615,120 L628,88"/>
+<path class="ink-thin" d="M628,88 L648,70"/>
+<path class="ink" d="M655,158 L685,135 L712,110"/>
+<path class="ink" d="M658,175 L695,180 L722,165"/>
+<path class="ink" d="M612,175 L578,182 L552,168"/>
+<path class="ink" d="M615,158 L588,132 L565,105"/>
+<circle class="soma" cx="635" cy="168" r="18"/>
+
+<!-- tree C, medium -->
+<line class="ink" x1="810" y1="255" x2="810" y2="198"/>
+<path class="ink" d="M810,198 L788,168 L798,140"/>
+<path class="ink" d="M810,198 L813,160 L820,128"/>
+<path class="ink" d="M810,198 L838,172 L858,148"/>
+<path class="ink" d="M810,198 L830,182 L852,172"/>
+<circle class="soma" cx="810" cy="198" r="13"/>
+
+<!-- tree D, small -->
+<line class="ink-thin" x1="955" y1="255" x2="955" y2="218"/>
+<path class="ink-thin" d="M955,218 L940,196 L930,176"/>
+<path class="ink-thin" d="M955,218 L958,190 L963,166"/>
+<path class="ink-thin" d="M955,218 L975,198 L988,180"/>
+<circle class="soma" cx="955" cy="218" r="9"/>
+
+<!-- tree E, medium-small -->
+<line class="ink-thin" x1="1100" y1="255" x2="1100" y2="210"/>
+<path class="ink-thin" d="M1100,210 L1085,186 L1075,164"/>
+<path class="ink-thin" d="M1100,210 L1103,180 L1108,155"/>
+<path class="ink-thin" d="M1100,210 L1122,190 L1138,170"/>
+<circle class="soma" cx="1100" cy="210" r="10"/>
+</svg>
