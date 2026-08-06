@@ -40,12 +40,12 @@
 
 <!-- tree B, large focal tree -->
 <line class="ink" x1="635" y1="255" x2="635" y2="168"/>
-<path class="ink" d="M635,150 L615,120 L628,88"/>
+<path class="ink" d="M635,151 L615,120 L628,88"/>
 <path class="ink-thin" d="M628,88 L648,70"/>
-<path class="ink" d="M655,158 L685,135 L712,110"/>
-<path class="ink" d="M658,175 L695,180 L722,165"/>
-<path class="ink" d="M612,175 L578,182 L552,168"/>
-<path class="ink" d="M615,158 L588,132 L565,105"/>
+<path class="ink" d="M650,160 L685,135 L712,110"/>
+<path class="ink" d="M651,173 L695,180 L722,165"/>
+<path class="ink" d="M619,173 L592,179"/>
+<path class="ink" d="M620,160 L588,132 L565,105"/>
 <circle class="soma" cx="635" cy="168" r="18"/>
 
 <!-- tree C, medium -->

@@ -188,3 +188,66 @@ plot_morphology(soma, section_colors={"basal_dendrite": "tab:blue"})
   and bifurcation bias.
 - `neuwalk/analysis/` — extracting statistics (Sholl plots, bifurcation
   counts) from existing morphologies, to calibrate new presets.
+
+## Package contents: `neuwalk.synthesis`
+
+### `neuwalk.synthesis.morphology`
+
+- `MorphologySynthesizer` — described above, the class that walks a
+  topology and synthesizes it in 3D space.
+- `neuwalk.synthesis.morphology.biases` — the bias registry
+  (`get_elongation`, `get_bifurcation`), backed by:
+  - **Elongation biases**: `attraction`, `ellipsoid_boundary`,
+    `plane_boundary`, `sibling_repulsion`, `parent_repulsion`,
+    `all_sections_repulsion`, `nonrelated_repulsion`, `root_repulsion`,
+    `truncated_cone_boundary`.
+  - **Bifurcation biases**: `radial_torsion`, `internal_branch`,
+    `cross_torsion`.
+
+### `neuwalk.synthesis.topology`
+
+- `TopologySynthesizer` — described above, the class that fits a
+  tree's branching statistics.
+- `synthesize_progressive` — the algorithm behind
+  `TopologySynthesizer.synthesize_progressive`. It fits a tree one
+  Sholl bin at a time; when a bin's intersection count falls outside
+  its allowed range, the tree is rolled back and that bin retried,
+  progressively expanding the rollback window over earlier bins if
+  attempts keep failing.
+- `neuwalk.synthesis.topology.sampling.EventSampler` — samples *when*
+  a section bifurcates or annihilates, from radial event densities.
+- `neuwalk.synthesis.topology.sampling.estimation` — `event_rates` and
+  `initial_count_pmf`, which fit those event densities and the
+  initial primary-section-count distribution to experimental Sholl
+  data. Used internally by `TopologySynthesizer`; not usually called
+  directly.
+
+## Command-line utilities
+
+Two standalone scripts at the repository root work with SWC files
+directly, outside of the synthesis pipeline.
+
+### `morphplot.py`
+
+Loads an SWC file and plots it in 3D:
+
+```bash
+python morphplot.py path/to/morphology.swc --color-sections
+```
+
+`--color-sections` colors each section by its SWC label (soma black,
+axon red, basal dendrite blue, apical dendrite green).
+
+### `morphlabeler.py`
+
+An interactive Matplotlib viewer for relabeling sections by hand:
+
+```bash
+python morphlabeler.py path/to/morphology.swc
+```
+
+Run without a path to pick a file from a dialog instead. Click a
+section to select it, choose a new label from the radio-button panel,
+apply it to just that section or to its whole subtree, and save the
+edited morphology back to an SWC file — all without leaving the 3D
+view.
