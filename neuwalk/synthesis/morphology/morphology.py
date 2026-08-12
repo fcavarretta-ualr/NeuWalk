@@ -232,9 +232,17 @@ class MorphologySynthesizer:
 
         return axis_direction
 
-    def _resolve_primary_angles(self, label):
+    def _resolve_primary_angles(self, label, n):
         """Resolve theta and phi independently for the given label."""
-        return self._resolve(self.theta, label), self._resolve(self.phi, label)
+        theta, phi = self._resolve(self.theta, label), self._resolve(self.phi, label)
+
+        if isinstance(theta, dict):
+            theta = theta.get(n, theta.get("default"))
+
+        if isinstance(phi, dict):
+            phi = phi.get(n, phi.get("default"))
+
+        return theta, phi
 
     def _next_event(self, section):
         """
@@ -322,7 +330,7 @@ class MorphologySynthesizer:
             ordered_directions = []
 
             for label, profiles in profiles_by_label.items():
-                theta, phi = self._resolve_primary_angles(label)
+                theta, phi = self._resolve_primary_angles(label, len(profiles))
                 directions = misc.sphere_surface_points(n=len(profiles), theta=theta, phi=phi)
 
                 axis_direction = self._resolve_axis_direction(label)
@@ -351,6 +359,7 @@ class MorphologySynthesizer:
                     max_angle=self._resolve(self.max_angle, profile.label),
                     elongation_random_weight=self._resolve(self.elongation_random_weight, profile.label),
                     elongation_bias_weight=self._resolve(self.elongation_bias_weight, profile.label),
+                    axis_direction=self._resolve(self.axis_direction, profile.label),
                 )
                 self.active_sections.setdefault(profile.order, []).append((profile, walk))
 

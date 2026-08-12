@@ -307,6 +307,10 @@ def main():
         f"{len(files)} morphology file(s), {section_label}"
     )
     figure.tight_layout()
+
+    print('bifurcation count', np.mean(branch_counts), np.std(branch_counts))
+    print('total length', np.mean(lengths), np.std(lengths))
+
     plt.show()
 
 

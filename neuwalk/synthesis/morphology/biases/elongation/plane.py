@@ -16,7 +16,7 @@ def plane_boundary(reference_section, origin, axis, K, n, strict=False):
   if strict and distance < 0:
     return None
 
-  factor = 1.0 if K is None else misc.hill(distance, K, n)
+  factor = 1.0 if K is None else misc.hill(max(distance, 0), K, n)
 
   return axis_direction * factor
 

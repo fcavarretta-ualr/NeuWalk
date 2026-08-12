@@ -1,7 +1,13 @@
 import numpy as np
 
 
-def synthesize_progressive(tree, n_std=1.0, max_attempts_per_window=10, max_total_attempts=1000, verbose=False):
+def synthesize_progressive(
+    tree,
+    n_std=1.0,
+    max_attempts_per_window=10,
+    max_total_attempts=1000,
+    verbose=False,
+):
     """
     Synthesize a section tree progressively while enforcing Sholl constraints.
 
@@ -23,10 +29,27 @@ def synthesize_progressive(tree, n_std=1.0, max_attempts_per_window=10, max_tota
     Each accepted bin creates a checkpoint based on ``tree.synthesis_logs``.
     Rollback is performed through ``tree.undo_synthesize()``.
 
+    Once every Sholl bin has been accepted, if ``tree.bifurcation_count_constraint``
+    is set, the tree's total bifurcation count (``tree.bifurcation_count()``) is
+    checked against it, using the same ``n_std`` as the Sholl bins:
+
+        mean - n_std * std <= bifurcation count <= mean + n_std * std
+
+    Unlike a failed Sholl bin, a failed bifurcation-count check rolls the tree
+    all the way back to its initial state and regenerates every bin from
+    scratch, since the count is a property of the whole tree rather than any
+    one bin. This repeats until the count is accepted or the shared attempt
+    budget (``max_total_attempts``) is exhausted. When
+    ``tree.bifurcation_count_constraint`` is unset (``None``), this check is
+    skipped entirely and the function returns as soon as every Sholl bin is
+    accepted, exactly as before this check existed.
+
     Note that in the worst case (e.g. an unsatisfiable early bin), the total
-    number of regeneration attempts can grow roughly quadratically in the
+    number of regeneration attempts can increase roughly quadratically in the
     number of bins, since each window expansion re-attempts every bin from
-    the new start up to ``target_bin``. Tune ``max_attempts_per_window`` and
+    the new start up to ``target_bin``. Whole-tree regeneration triggered by
+    the bifurcation-count check compounds this further, since it re-runs the
+    entire bin-by-bin process again. Tune ``max_attempts_per_window`` and
     ``max_total_attempts`` with this in mind.
 
     Parameters
@@ -35,6 +58,9 @@ def synthesize_progressive(tree, n_std=1.0, max_attempts_per_window=10, max_tota
         Tree to synthesize. It must provide:
 
         - ``sholl_plot_constraint["mean"]`` and ``["std"]``
+        - ``bifurcation_count_constraint`` (``None``, or a dict with
+          ``"mean"`` and ``"std"``)
+        - ``bifurcation_count()``
         - ``event_sampler.bin_size``
         - ``event_sampler.step_size``
         - ``synthesis_logs``
@@ -45,16 +71,20 @@ def synthesize_progressive(tree, n_std=1.0, max_attempts_per_window=10, max_tota
 
     n_std : float, default=1.0
         Number of standard deviations allowed above and below each target
-        Sholl mean. A bin with zero standard deviation must match its target
-        mean numerically.
+        Sholl mean, and (once every Sholl bin is accepted) around the target
+        mean bifurcation count when ``tree.bifurcation_count_constraint`` is
+        set. A target with zero standard deviation must match its mean
+        numerically.
 
     max_attempts_per_window : int, default=10
         Maximum number of regeneration attempts for a rollback window before
         expanding the window to include one additional earlier bin.
 
     max_total_attempts : int, default=1000
-        Maximum number of regeneration attempts across the entire synthesis.
-        The tree is restored to its initial state if this limit is reached.
+        Maximum number of regeneration attempts across the entire synthesis,
+        shared between per-bin regeneration and whole-tree regeneration
+        triggered by the bifurcation-count check. The tree is restored to
+        its initial state if this limit is reached.
 
     verbose : bool, default=False
         Print information about synthesis attempts, validation results,
@@ -77,8 +107,8 @@ def synthesize_progressive(tree, n_std=1.0, max_attempts_per_window=10, max_tota
         methods.
 
     RuntimeError
-        If the Sholl constraints cannot be satisfied within the permitted
-        regeneration attempts.
+        If the Sholl constraints, or the bifurcation-count constraint,
+        cannot be satisfied within the permitted regeneration attempts.
 
     Notes
     -----
@@ -96,9 +126,9 @@ def synthesize_progressive(tree, n_std=1.0, max_attempts_per_window=10, max_tota
     # Convert one Sholl bin into synthesis steps.
     bin_size = float(tree.event_sampler.bin_size)
 
-    # Record the initial state and accepted state after each bin.
+    # Record the initial state; every whole-tree regeneration rolls back to
+    # this point and starts over.
     base_log_count = len(tree.synthesis_logs)
-    checkpoints = []
     total_attempts = 0
 
     if verbose:
@@ -110,39 +140,66 @@ def synthesize_progressive(tree, n_std=1.0, max_attempts_per_window=10, max_tota
 
     _log(f"Starting synthesis for {len(mean)} bins.")
 
-    # Accept one Sholl bin at a time.
-    for target_bin in range(len(mean)):
-        start_bin = target_bin
+    while True:
+        # Record the accepted state after each bin, reset for every
+        # whole-tree attempt.
+        checkpoints = []
 
-        while True:
-            _log(f"Regenerating bins {start_bin}-{target_bin}.")
+        # Accept one Sholl bin at a time.
+        for target_bin in range(len(mean)):
+            start_bin = target_bin
 
-            # Retry the current rollback window.
-            for window_attempt in range(1, max_attempts_per_window + 1):
-                if total_attempts >= max_total_attempts:
-                    _rollback(tree, base_log_count, _log)
-                    raise RuntimeError(f"Unable to satisfy Sholl constraints within {max_total_attempts} attempts.")
+            while True:
+                _log(f"Regenerating bins {start_bin}-{target_bin}.")
 
-                total_attempts += 1
-                rollback_count = base_log_count if start_bin == 0 else checkpoints[start_bin - 1]
+                # Retry the current rollback window.
+                for window_attempt in range(1, max_attempts_per_window + 1):
+                    if total_attempts >= max_total_attempts:
+                        _rollback(tree, base_log_count, _log)
+                        raise RuntimeError(f"Unable to satisfy Sholl constraints within {max_total_attempts} attempts.")
 
-                _log(f"Attempt {total_attempts}, window attempt {window_attempt}/{max_attempts_per_window}.")
-                _rollback(tree, rollback_count, _log)
-                del checkpoints[start_bin:]
+                    total_attempts += 1
+                    rollback_count = base_log_count if start_bin == 0 else checkpoints[start_bin - 1]
 
-                if _regenerate_window(tree, start_bin, target_bin, mean, std, n_std, bin_size, checkpoints, _log):
-                    _log(f"Bin {target_bin} accepted.")
-                    break
-            else:
-                # Expand the rollback window after repeated failure.
-                if start_bin == 0:
-                    _rollback(tree, base_log_count, _log)
-                    raise RuntimeError(f"Unable to satisfy Sholl bins 0-{target_bin}.")
+                    _log(f"Attempt {total_attempts}, window attempt {window_attempt}/{max_attempts_per_window}.")
+                    _rollback(tree, rollback_count, _log)
+                    del checkpoints[start_bin:]
 
-                start_bin -= 1
-                continue
+                    if _regenerate_window(tree, start_bin, target_bin, mean, std, n_std, bin_size, checkpoints, _log):
+                        _log(f"Bin {target_bin} accepted.")
+                        break
+                else:
+                    # Expand the rollback window after repeated failure.
+                    if start_bin == 0:
+                        _rollback(tree, base_log_count, _log)
+                        raise RuntimeError(f"Unable to satisfy Sholl bins 0-{target_bin}.")
 
+                    start_bin -= 1
+                    continue
+
+                break
+
+        # Every Sholl bin was accepted. If no bifurcation-count constraint
+        # was given, synthesis is done.
+        if tree.bifurcation_count_constraint is None:
             break
+
+        valid, generated, lower, upper = _bifurcation_count_status(tree, n_std)
+        status = "accepted" if valid else "rejected"
+        _log(f"Bifurcation count: generated={generated:g}, allowed=[{lower:g}, {upper:g}] -> {status}.")
+
+        if valid:
+            break
+
+        if total_attempts >= max_total_attempts:
+            _rollback(tree, base_log_count, _log)
+            raise RuntimeError(
+                f"Unable to satisfy the bifurcation-count constraint within {max_total_attempts} attempts "
+                f"(last generated count: {generated:g}, allowed: [{lower:g}, {upper:g}])."
+            )
+
+        _log("Bifurcation count out of range; regenerating the entire tree.")
+        _rollback(tree, base_log_count, _log)
 
     _log("Progressive synthesis completed successfully.")
     return tree.soma if getattr(tree, "with_soma", False) else tree.roots
@@ -175,6 +232,21 @@ def _sholl_status(tree, bin_index, mean, std, n_std, bin_size):
     """Return whether one generated Sholl bin satisfies its constraint."""
     generated = float(tree.sholl_plot(max_distance=bin_index * bin_size)[bin_index])
     target_mean, target_std = float(mean[bin_index]), float(std[bin_index])
+
+    # Zero standard deviation requires an exact numerical match.
+    if np.isclose(target_std, 0.0):
+        return bool(np.isclose(generated, target_mean)), generated, target_mean, target_mean
+
+    lower = target_mean - n_std * target_std
+    upper = target_mean + n_std * target_std
+    return lower <= generated <= upper, generated, lower, upper
+
+
+def _bifurcation_count_status(tree, n_std):
+    """Return whether the tree's total bifurcation count satisfies its constraint."""
+    constraint = tree.bifurcation_count_constraint
+    generated = float(tree.bifurcation_count())
+    target_mean, target_std = float(constraint["mean"]), float(constraint["std"])
 
     # Zero standard deviation requires an exact numerical match.
     if np.isclose(target_std, 0.0):
@@ -220,8 +292,12 @@ def _validate(tree, n_std, max_attempts_per_window, max_total_attempts):
         raise TypeError("tree must provide undo_synthesize().")
     if not callable(getattr(tree, "sholl_plot", None)):
         raise TypeError("tree must provide sholl_plot(max_distance=...).")
+    if not callable(getattr(tree, "bifurcation_count", None)):
+        raise TypeError("tree must provide bifurcation_count().")
     if getattr(tree, "synthesis_logs", None) is None:
         raise TypeError("tree must provide synthesis_logs.")
+    if not hasattr(tree, "bifurcation_count_constraint"):
+        raise TypeError("tree must provide bifurcation_count_constraint.")
 
     root_attr = "soma" if getattr(tree, "with_soma", False) else "roots"
     if not hasattr(tree, root_attr):
@@ -256,5 +332,12 @@ def _validate(tree, n_std, max_attempts_per_window, max_total_attempts):
         raise ValueError("Sholl mean must be nonempty.")
     if mean.shape != std.shape:
         raise ValueError(f"Sholl mean and std must have the same shape, got {mean.shape} and {std.shape}.")
+
+    # --- Bifurcation-count constraint validation ---
+    bifurcation_count_constraint = tree.bifurcation_count_constraint
+
+    if bifurcation_count_constraint is not None:
+        if "mean" not in bifurcation_count_constraint or "std" not in bifurcation_count_constraint:
+            raise ValueError("tree.bifurcation_count_constraint must have 'mean' and 'std' entries.")
 
     return mean, std

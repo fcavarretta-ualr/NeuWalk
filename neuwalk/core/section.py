@@ -95,8 +95,11 @@ class Section(SectionObject):
         """
         Count terminal, bifurcation, and internal-branch events by spatial bin.
 
-        The bins match the intervals used by ``sholl_plot``. Therefore, if the
-        Sholl plot has length ``n``, each returned array has length ``n - 1``.
+        Bin ``i`` covers the interval ``[i * bin_size, (i + 1) * bin_size)``,
+        matching the bins used by ``sholl_plot``: for the same ``bin_size``
+        and ``max_distance``, both methods return arrays of the same length,
+        and bin ``i`` in one refers to the same spatial interval as bin ``i``
+        in the other.
 
         Returns
         -------
@@ -134,7 +137,9 @@ class Section(SectionObject):
 
         # go over all sections
         for section in sections:
-            i_bin = int(np.linalg.norm(section.points[-1] - source) / bin_size)
+            # clamp so a section ending past max_distance still lands in
+            # the last bin rather than indexing out of bounds
+            i_bin = min(int(np.linalg.norm(section.points[-1] - source) / bin_size), n_bins - 1)
             match len(section.children):
                 case 0:
                     annihilations[i_bin] += 1
@@ -173,9 +178,20 @@ class Section(SectionObject):
         """
         Calculate a Sholl plot after aligning primary section origins.
 
-        Bin zero contains the number of primary sections. Each primary
-        section subtree is translated so that its first point lies at the
-        origin before shell intersections are calculated.
+        Bin ``i`` counts the number of sections whose path passes through
+        the interval ``[i * bin_size, (i + 1) * bin_size)`` at least once,
+        determined from the section's full range of distances from the
+        root (its minimum to its maximum), not just the direction of
+        individual segments. This means a section that moves inward at
+        some point along its path (e.g. due to a random elongation
+        component) is still counted at every interval its path actually
+        passes through, and is counted at most once per interval even if
+        it revisits that interval multiple times.
+
+        These are the same bins used by ``_event_counts``: for the same
+        ``bin_size`` and ``max_distance``, both methods return arrays of
+        the same length, with bin ``i`` referring to the same spatial
+        interval in both.
         """
         if bin_size <= 0:
             raise ValueError("bin_size must be positive.")
@@ -196,21 +212,24 @@ class Section(SectionObject):
             raise ValueError("max_distance cannot be negative.")
 
         
-        radii = np.arange(0.0, max_distance + bin_size, bin_size)
-        crossings = np.zeros(len(radii), dtype=int)
+        n_bins = int(max_distance / bin_size) + 1
+        crossings = np.zeros(n_bins, dtype=int)
 
-        # get all the segments
+        # each section contributes at most once to a bin: count it in
+        # every interval its path's distance-from-source range spans,
+        # regardless of whether it moves inward or outward to get there
         for section in sections:
-            for p0, p1 in zip(section.points[:-1], section.points[1:]):
-                # distances
-                start = np.linalg.norm(p0 - source)
-                end = np.linalg.norm(p1 - source)
+            if section.parent is None or section.parent.label == "soma":
+                crossings[0] += 1
                 
-                # do not count any backward oriented segment
-                if start < end:
-                    crossings += (radii >= start) & (radii < end)
-                    
-        return crossings.astype(int)
+            distances = np.linalg.norm(np.asarray(section.points, dtype=float) - source, axis=1)
+
+            min_bin = int(distances.min() / bin_size) + 1
+            max_bin = min(int(distances.max() / bin_size) + 1, n_bins - 1)
+
+            crossings[min_bin:max_bin] += 1
+
+        return crossings
 
 
 
@@ -253,6 +272,3 @@ class Neuron(list):
             for descendant in section.wholetree():
                 if label is None or descendant.label == label:
                     yield descendant
-
-
-

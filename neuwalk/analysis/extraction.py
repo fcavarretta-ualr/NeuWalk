@@ -31,7 +31,7 @@ def extract_statistics(morphologies, bin_size):
             internal_bifurcations.append(internal)
 
         sholl_size = max(map(len, sholl), default=1)
-        event_size = max(sholl_size - 1, 0)
+        event_size = sholl_size
         total_sholl = sum((_pad(values, sholl_size) for values in sholl), start=np.zeros(sholl_size))
         total_bif = sum((_pad(values, event_size) for values in bifurcations), start=np.zeros(event_size))
         total_ann = sum((_pad(values, event_size) for values in annihilations), start=np.zeros(event_size))
@@ -43,7 +43,7 @@ def extract_statistics(morphologies, bin_size):
         total_lengths.append(sum(root.total_length for root in roots))
 
     sholl_size = max(len(record[0]) for record in records)
-    event_size = sholl_size - 1
+    event_size = sholl_size
     sholl_matrix = np.vstack([_pad(record[0], sholl_size) for record in records])
     bif_matrix = np.vstack([_pad(record[1], event_size) for record in records])
     ann_matrix = np.vstack([_pad(record[2], event_size) for record in records])

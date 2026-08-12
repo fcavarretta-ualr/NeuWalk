@@ -30,7 +30,8 @@ class SectionSynthesizer(Section):
         elongation_random_hill_k=None,
         elongation_random_hill_n=None,
         elongation_bias_weight=1.0,
-        max_step_size=20
+        max_step_size=5,
+        axis_direction=None,
     ):
         """Initialize the random walk."""
 
@@ -142,6 +143,16 @@ class SectionSynthesizer(Section):
         
         self.max_step_size = max_step_size
 
+        axis_direction = np.asarray(axis_direction, dtype=float)
+
+        if axis_direction.shape != (3,):
+            raise ValueError("axis_direction must have shape (3,).")
+
+        if np.isclose(np.linalg.norm(axis_direction), 0.0):
+            raise ValueError("axis_direction cannot be the zero vector.")
+        
+        self.axis_direction = axis_direction
+
 
     @property
     def origin(self):
@@ -217,6 +228,8 @@ class SectionSynthesizer(Section):
     def _generate_point(self, direction):
         """Generate a proposed point."""
         direction = misc.to_unit_vector(direction)
+        if self._step_size(direction) > 5:
+            print(self._step_size(direction))
         return self.current_point + self._step_size(direction) * direction
 
     def _sample_direction(self, reference_direction):
@@ -262,16 +275,18 @@ class SectionSynthesizer(Section):
             self.elongation_random_hill_n,
         )
 
-        random_component = self._sample_direction(direction) * hill_value
-        direction = misc.to_unit_vector(direction + random_component * self.elongation_random_weight)
+        random_component = self._sample_direction(direction)
+        direction = misc.to_unit_vector(direction + random_component * self.elongation_random_weight * hill_value)
 
         # check for centrifugal component
         # if it is null, then correct the direction
-        if self.centrifugal:
-            centrifugal_direction = self._centrifugal_direction()
-
-            if np.dot(direction, centrifugal_direction) <= 0.0:
-                direction = centrifugal_direction
+        if isinstance(self.axis_direction, np.ndarray) and np.dot(self.axis_direction, direction) < 0:
+            direction = self.axis_direction
+        #if self.centrifugal:
+        #    centrifugal_direction = self._centrifugal_direction()
+        #
+        #    if np.dot(direction, centrifugal_direction) <= 0.0:
+        #        direction = centrifugal_direction
 
         point = self._generate_point(direction)
         self.pending_event = {"event": "elongation", "point": point, "direction": direction}

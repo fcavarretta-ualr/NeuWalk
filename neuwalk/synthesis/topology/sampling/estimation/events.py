@@ -2,7 +2,7 @@ from pyomo.environ import *
 import numpy as np
 from pyomo.core.expr.numeric_expr import Expr_if
 
-_Bif_Var_Penalty = 5.0
+_Bif_Var_Penalty = 1.0
 
 def _entropy_term(p):
     return Expr_if(
@@ -262,56 +262,33 @@ def event_rates(
     # Initial value for b: copy gamma, clamp negatives to 0, then map index -> value
     init_b = dict(enumerate(gamma.clip(min=0).copy()))
 
+    # boundaries for beta rates
+    lower_bound = np.maximum(0, gamma)
+    upper_bound = 0.5 * (1.0 / step_size + gamma)
+
     # create the model 
     model = ConcreteModel()
-    model.I = Set(initialize=list(range(gamma.size)))
     
     # Define index set and variables
-    model.b = Var(range(gamma.size), domain=NonNegativeReals, initialize=init_b)
-    
-    # expression for probabilities
-    model.pa = Expression(
-        model.I,
-        rule=lambda model, i: (model.b[i] - gamma[i]) * step_size,
-    )
+    model.b = Var(range(gamma.size), domain=NonNegativeReals, initialize=init_b, bounds=lambda model, i : (lower_bound[i], upper_bound[i]))
 
-    model.pb = Expression(
-        model.I,
-        rule=lambda model, i: model.b[i] * step_size,
-    )
 
-    model.pe = Expression(
-        model.I,
-        rule=lambda model, i: 1 - (2 * model.b[i] - gamma[i]) * step_size,
-    )
-    
+    # some beta rates might be fixed
+    for i in range(gamma.size):
+        if no_annihilation_bins[i] and (gamma[i] > 0 or np.isclose(gamma[i], 0)):
+            model.b[i].fix(gamma[i])
+        elif no_bifurcation_bins[i] and (gamma[i] < 0 or np.isclose(gamma[i], 0)):
+            model.b[i].fix(0)
+
+##        if no_bifurcation_bins[i] and not no_annihilation_bins[i] and gamma[i] > 0:
+##            print('CASE-1', i, no_bifurcation_bins[i], no_annihilation_bins[i], gamma[i])
+##        if not no_bifurcation_bins[i] and no_annihilation_bins[i] and gamma[i] < 0:
+##            print('CASE-2', i, no_bifurcation_bins[i], no_annihilation_bins[i], gamma[i])   
     # define 1 slack variables for eventual constraints of variance of bifurcations
-    model.s = Var(range(2), domain=Reals)
+    model.s = Var( domain=Reals)
             
     # Constraint: 
-    model.constraints = ConstraintList()
-    
-
-    # create the minimum required constraints
-    for i in range(gamma.size):
-        # check if branching or annihilation are user-constrained
-        if no_annihilation_bins[i]:
-            model.constraints.add(model.pa[i] == 0)
-        else:
-            model.constraints.add(model.pa[i] <= 1)  
-            model.constraints.add(model.pa[i] >= 0)
-            
-        if no_bifurcation_bins[i]:
-            model.constraints.add(model.pb[i] == 0)
-        else:
-            model.constraints.add(model.pb[i] <= 1)  
-            model.constraints.add(model.pb[i] >= 0)
-            
-        model.constraints.add(model.pe[i] <= 1)  
-        model.constraints.add(model.pe[i] >= 0)
-
-        model.constraints.add(model.pe[i] + model.pa[i] + model.pb[i] <= 1)  
-        model.constraints.add(model.pe[i] + model.pa[i] + model.pb[i] >= 0)        
+    model.constraints = ConstraintList()     
         
     # if we have number of bifurcations, use it as contraints
     if n_bif:        
@@ -324,12 +301,12 @@ def event_rates(
         if n_bif[1]:
             var_terms = _mk_bif_var_terms(model.b, Z, gamma, V, bin_size)
             covar_terms = _mk_bif_covar_terms(model.b, Z, gamma, V, bin_size)               
-            model.constraints.add(sum(var_terms + covar_terms) + model.s[0] == n_bif[1])
+            model.constraints.add(sum(var_terms + covar_terms) + model.s == n_bif[1])
 
         
     # Objective
     model.obj = Objective(
-        expr=sum(_mk_objective(model.b, gamma, Z, V, bin_size)) + _Bif_Var_Penalty * model.s[0] ** 2,
+        expr=sum(_mk_objective(model.b, gamma, Z, V, bin_size)) + _Bif_Var_Penalty * model.s ** 2,
         sense=minimize
     )
   
