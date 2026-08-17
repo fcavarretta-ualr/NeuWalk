@@ -17,7 +17,7 @@ def generate(seed, cell_type, **kwargs):
     all_params = json.loads(path.read_text())
 
     bin_size = kwargs.get("bin_size", 10.0)
-    step_size = kwargs.get("step_size", 1.0)
+    step_size = kwargs.get("step_size", 2.5)
     
     max_steps = kwargs.get("max_steps", 100)
     
@@ -25,10 +25,6 @@ def generate(seed, cell_type, **kwargs):
     n_std = kwargs.get("n_std", 3.0)
     max_attempts_per_window = kwargs.get("max_attempts_per_window", 10)
     max_total_attempts = kwargs.get("max_total_attempts", 1000)
-
-
-    # density of oblique branch points
-    #bifurcation_internal_density = all_params.pop("bifurcation_internal_density")
 
     # generate the profiles for each label
     ret = _common.synthesize_topologies(
@@ -40,51 +36,32 @@ def generate(seed, cell_type, **kwargs):
         max_total_attempts,
         verbose,
     )
-
-
-##    # dendrite annihilating in a bin where bifurcation dominate are considered as secondery and
-##    # undergo late development
-##    apical_synthesizer = ret['apical_dendrite']['topology']
-##    for section in apical_synthesizer.soma.wholetree:
-##        # it has annihilated
-##        if not section.children:
-##            # calculate the distance of the extreme
-##            distance = section.distance_from_root + section.length
-##            sholl_bin = int(distance / apical_synthesizer.bin_size)
-##            bifurcation_rate = apical_synthesizer.event_sampler.bifurcation_density[sholl_bin]
-##            annihilation_rate = apical_synthesizer.event_sampler.annihilation_density[sholl_bin]
-##            #print(apical_synthesizer.sholl_plot_constraint)
-##            #print(section, 'annihilated', distance, bifurcation_rate, annihilation_rate, section.depth, section.parent.label)
-##
-##            if bifurcation_rate >= annihilation_rate:
-##                #print('what is going on?')
-##                section.order = 1
-##                
-##    # set order for basal
-##    ret['basal_dendrite']['topology'].soma.set_order(2)
     
     # spatial bias is a composition of truncated cones
     apical_spatial_bias = biases.get_elongation("plane_boundary", np.array([0., 0., 0.]), (0., 0.), None, None)
-    spatial_bias = biases.get_elongation("plane_boundary", np.array([0., 100., 0.]), (np.pi / 2, np.pi), 50.0, -2.0)  + \
-                   biases.get_elongation("plane_boundary", np.array([0., -100., 0.]), (np.pi / 2, 0), 50.0, -2.0)
+
+    thickness = {'semilunar':200, 'pyramidal':200}[cell_type]
+    repulsion_weight = {'semilunar':0.002, 'pyramidal':0.002}[cell_type]
+    
+    spatial_bias = biases.get_elongation("plane_boundary", np.array([0., thickness, 0.]), (np.pi / 2, np.pi / 2 * 3), thickness / 2, -2.0)  + \
+                   biases.get_elongation("plane_boundary", np.array([0., -thickness, 0.]), (np.pi / 2, np.pi / 2), thickness / 2, -2.0)
     
     basal_spatial_bias = biases.get_elongation("plane_boundary", np.array([0., 0., 0.]), (np.pi, 0.), None, None)
 
     # create self-avoidance bias
-    section_bias = biases.get_elongation("sibling_repulsion", 25, -2) + biases.get_elongation("nonrelated_repulsion", 10, -2)
-
+    section_bias = biases.get_elongation("sibling_repulsion", 25, -2) + biases.get_elongation("nonrelated_repulsion", 15, -2)
     # somatic repulsion
 
     # compose the biases into the elongation bias, one per label
     apical_elongation_bias = [
       (0.75, apical_spatial_bias),
-      (0.01, section_bias),
+      (repulsion_weight, section_bias),
       (0.3, spatial_bias)
       ]
 
     basal_elongation_bias = [
       (0.75, basal_spatial_bias),
-      (0.01, section_bias),
+      (0.002, section_bias),
       (0.3, spatial_bias)
       ]
     
@@ -98,22 +75,24 @@ def generate(seed, cell_type, **kwargs):
         ret['basal_dendrite']['topology'].soma,
     )
 
-    #merged_topology.set_order(0, labels='apical_dendrite')
-    #merged_topology.set_order(1, labels='basal_dendrite')
+    # generate apical first, and then basal dendrites
+    merged_topology.set_order(0, labels='apical_dendrite')
+    merged_topology.set_order(1, labels='basal_dendrite')
     
     synthesizer = MorphologySynthesizer(
         topology=merged_topology,
         rng=Random(seed),
-        theta={'apical_dendrite': {1:0, "default":(0, np.pi / 3)}, 'basal_dendrite': (0, np.pi / 3)},
-        phi={'apical_dendrite': {1:0, "default":(0, 2 * np.pi)}, 'basal_dendrite': (0, 2 * np.pi)},
+        theta={1:0, "default":np.pi / 3},
+        phi={1:0, "default":(0, 2 * np.pi)},
         axis_direction={
             'apical_dendrite': np.array([0.0, 0.0, 1.0]),
             'basal_dendrite': np.array([0.0, 0.0, -1.0]),
         },
         bifurcation_bias=bifurcation_bias,
         elongation_bias={'apical_dendrite': apical_elongation_bias, 'basal_dendrite': basal_elongation_bias},
-        elongation_random_weight=5,
+        elongation_random_weight=1.5,
         elongation_bias_weight=5,
+        correction_type='somatodendritic',
     )
 
     # synthesize() now runs both orders (apical, then basal) to

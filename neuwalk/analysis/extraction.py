@@ -2,8 +2,9 @@ import numpy as np
 
 
 def _pad(values, size):
-    values = np.asarray(values)
-    return np.pad(values, (0, size - len(values)))
+    padded_values = np.zeros(size)
+    padded_values[:values.size] = values
+    return padded_values
 
 
 def extract_statistics(morphologies, bin_size):
@@ -39,7 +40,6 @@ def extract_statistics(morphologies, bin_size):
 
         records.append((total_sholl, total_bif, total_ann, total_internal))
         primary_counts.append(int(total_sholl[0]))
-        print(total_sholl[0])
         total_lengths.append(sum(root.total_length for root in roots))
 
     sholl_size = max(len(record[0]) for record in records)
@@ -52,8 +52,8 @@ def extract_statistics(morphologies, bin_size):
     mean_sholl = sholl_matrix.mean(axis=0)
     exposure = mean_sholl[:-1] * bin_size
     internal_density = internal_matrix.mean(axis=0) / bin_size
-    no_bifurcation = bif_matrix.sum(axis=0) == 0
-    no_annihilation = ann_matrix.sum(axis=0) == 0
+    no_bifurcation = np.isclose(bif_matrix.sum(axis=0), 0)
+    no_annihilation = np.isclose(ann_matrix.sum(axis=0), 0)
     bifurcation_counts = bif_matrix.sum(axis=1)
     total_lengths = np.asarray(total_lengths, dtype=float)
 

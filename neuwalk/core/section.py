@@ -124,40 +124,15 @@ class Section(SectionObject):
             max_distance = self._calculate_max_distance(bin_size)
 
         if max_distance < 0:
-            raise ValueError("max_distance cannot be negative.")
+            raise ValueError("max_distance cannot be negative.") 
         
-
         # create the histograms
-        n_bins = int(max_distance / bin_size)+1
+        n_bins = int(max_distance / bin_size)
+
+        # get event_counts
+        bifurcations, annihilations, internal_bifurcations = self.__event__counts__(bin_size)[1:]
         
-        bifurcations = np.zeros(n_bins, dtype=int)
-        annihilations = np.zeros(n_bins, dtype=int)
-        internal_bifurcations = np.zeros(n_bins, dtype=int)
-
-
-        # go over all sections
-        for section in sections:
-            # clamp so a section ending past max_distance still lands in
-            # the last bin rather than indexing out of bounds
-            i_bin = min(int(np.linalg.norm(section.points[-1] - source) / bin_size), n_bins - 1)
-            match len(section.children):
-                case 0:
-                    annihilations[i_bin] += 1
-                case 2:
-                    same_category_cnt = sum(section.label == ch.label for ch in section.children)
-
-                    match same_category_cnt:
-                        case 1:
-                            internal_bifurcations[i_bin] += 1
-                        case 2:
-                            bifurcations[i_bin] += 1
-                        case _:
-                            raise ValueError("A section have both children of different types.")
-                case 1:
-                    pass
-                case _:
-                    raise ValueError("A section have more then two children.")
-        return bifurcations, annihilations, internal_bifurcations
+        return bifurcations[:n_bins], annihilations[:n_bins], internal_bifurcations[:n_bins]
 
 
     def _calculate_max_distance(self, bin_size):
@@ -196,13 +171,6 @@ class Section(SectionObject):
         if bin_size <= 0:
             raise ValueError("bin_size must be positive.")
 
-        # Standard neuron: the root is generally the soma and its children
-        # are the primary sections.
-        # discard soma, unknown, or sections with one point only
-        sections = {section for section in self.subtree if section.label not in {"soma", "unknown"} and len(section.points) > 1}
-
-        # position from which calculate distance
-        source = self.root.points[0]
 
         # create the vector counters
         if max_distance is None:
@@ -213,24 +181,91 @@ class Section(SectionObject):
 
         
         n_bins = int(max_distance / bin_size) + 1
-        crossings = np.zeros(n_bins, dtype=int)
 
-        # each section contributes at most once to a bin: count it in
-        # every interval its path's distance-from-source range spans,
-        # regardless of whether it moves inward or outward to get there
+        return self.__event__counts__(bin_size)[0][:n_bins]
+
+
+
+
+
+    def __event__counts__(self, bin_size):
+        """
+        Count terminal, bifurcation, and internal-branch events by spatial bin.
+
+        Bin ``i`` covers the interval ``[i * bin_size, (i + 1) * bin_size)``,
+        matching the bins used by ``sholl_plot``: for the same ``bin_size``
+        and ``max_distance``, both methods return arrays of the same length,
+        and bin ``i`` in one refers to the same spatial interval as bin ``i``
+        in the other.
+
+        Returns
+        -------
+        tuple of numpy.ndarray
+            ``(bifurcations, annihilations, internal_bifurcations)``.
+        """
+
+
+        if bin_size <= 0:
+            raise ValueError("bin_size must be positive.")
+
+        # Standard neuron: the root is generally the soma and its children
+        # are the primary sections.
+        # discard soma, unknown, or sections with one point only
+        sections = {section for section in self.subtree if section.label not in {"soma", "unknown"}}
+
+        assert sum(len(s.points) > 1 for s in sections) == len(sections)
+
+        # position from which calculate distance
+        source = self.root.points[0]
+
+        # create the vector counters
+        max_distance = self._calculate_max_distance(bin_size)
+        
+
+        # create the histograms
+        n_bins = int(max_distance / bin_size) + 1
+        
+        bifurcations = np.zeros(n_bins, dtype=int)
+        annihilations = np.zeros(n_bins, dtype=int)
+        internal_bifurcations = np.zeros(n_bins, dtype=int)
+        crossings = np.zeros(n_bins + 1, dtype=int)
+        
+
+
+        # go over all sections
         for section in sections:
+            # clamp so a section ending past max_distance still lands in
+            # the last bin rather than indexing out of bounds
+            bin_indices = np.int64(np.linalg.norm(np.array(section.points, dtype=float) - source, axis=1) / bin_size)
+
+            match len(section.children):
+                case 0:
+                    annihilations[bin_indices[-1]] += 1
+                case 2:
+                    same_category_cnt = sum(section.label == ch.label for ch in section.children)
+                    
+                    match same_category_cnt:
+                        case 1:
+                            internal_bifurcations[bin_indices[-1]] += 1
+                        case 2:
+                            bifurcations[bin_indices[-1]] += 1
+                        case _:
+                            print(section.label, section.children[0].label, section.children[1].label)
+                            raise ValueError("A section have both children of different types.")
+                case 1:
+                    pass
+                case _:
+                    raise ValueError("A section have more then two children.")
+
+            # calculate sholl plots
             if section.parent is None or section.parent.label == "soma":
                 crossings[0] += 1
-                
-            distances = np.linalg.norm(np.asarray(section.points, dtype=float) - source, axis=1)
 
-            min_bin = int(distances.min() / bin_size) + 1
-            max_bin = min(int(distances.max() / bin_size) + 1, n_bins - 1)
+            for bin0, bin1 in zip(bin_indices[:-1], bin_indices[1:]):
+                bin0, bin1 = min(bin0, bin1)+1, max(bin0, bin1)+1
+                crossings[bin0:bin1] += 1
 
-            crossings[min_bin:max_bin] += 1
-
-        return crossings
-
+        return crossings, bifurcations, annihilations, internal_bifurcations
 
 
 

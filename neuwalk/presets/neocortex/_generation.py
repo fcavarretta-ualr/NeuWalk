@@ -102,6 +102,7 @@ def generate(seed, cell_type, **kwargs):
         axis_direction={
             'apical_dendrite': np.array([0.0, 0.0, 1.0]),
             'basal_dendrite': np.array([0.0, 0.0, -1.0]),
+            'default': None,
         },
         bifurcation_bias=bifurcation_bias,
         bifurcation_internal_bias={'apical_dendrite': bifurcation_internal_bias, 'default': None},
@@ -113,6 +114,14 @@ def generate(seed, cell_type, **kwargs):
             # child's label is resolved as soon as the internal branch
             # point is reached, during the very first (order 0) pass
             'apical_oblique': basal_elongation_bias,
+        },
+        # obliques have no axis_direction, so they keep the default
+        # (no direction correction); only the primary apical and basal
+        # trunks get pulled back toward the soma's axis.
+        correction_type={
+            'apical_dendrite': 'somatodendritic',
+            'basal_dendrite': 'somatodendritic',
+            'default': None,
         },
     )
 

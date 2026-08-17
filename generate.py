@@ -70,7 +70,7 @@ def generate(func, filename_fmt, n=200, max_workers=None):
 
 
 #generate(generate_neocortical_pyradamidal, "synthetic/OB/Neocortex/cell%d.swc")
-generate(generate_apc_semilunar, "synthetic/aPC/SL/cell%d.swc")
-generate(generate_apc_pyramidal, "synthetic/aPC/PYR/cell%d.swc")
+generate(generate_apc_semilunar, "synthetic/aPC/SL/cell%d.swc", max_workers=14)
+generate(generate_apc_pyramidal, "synthetic/aPC/PYR/cell%d.swc", max_workers=14)
 #generate(generate_mitral, "synthetic/OB/MITRAL/cell%d.swc")
 #generate(generate_tufted, "synthetic/OB/TUFTED/cell%d.swc")

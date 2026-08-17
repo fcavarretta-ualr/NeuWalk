@@ -15,9 +15,10 @@ class MorphologySynthesizer:
 
     ``theta``, ``phi``, ``axis_direction``, ``elongation_bias``,
     ``bifurcation_bias``, ``bifurcation_internal_bias``, ``centrifugal``,
-    ``max_angle``, ``elongation_random_weight``, and
-    ``elongation_bias_weight`` each accept either a single value (applied
-    regardless of label) or a dict mapping label to value, for example::
+    ``max_angle``, ``elongation_random_weight``,
+    ``elongation_bias_weight``, and ``correction_type`` each accept
+    either a single value (applied regardless of label) or a dict
+    mapping label to value, for example::
 
         elongation_bias={
             "apical_dendrite": apic_elongation_bias,
@@ -33,25 +34,28 @@ class MorphologySynthesizer:
     one of these parameters.
 
     ``elongation_bias``, ``bifurcation_bias``, ``bifurcation_internal_bias``,
-    ``centrifugal``, ``max_angle``, ``elongation_random_weight``, and
-    ``elongation_bias_weight`` are resolved twice: once when each primary
+    ``centrifugal``, ``max_angle``, ``elongation_random_weight``,
+    ``elongation_bias_weight``, ``axis_direction``, and
+    ``correction_type`` are resolved twice: once when each primary
     section's ``MorphologySectionSynthesizer`` is constructed, and again
     for any section created by a bifurcation, using that section's own
     (possibly different) label, right after it is assigned. This is why
     a section created by a bifurcation never silently keeps a value
     meant for its parent's label.
 
-    ``theta``, ``phi``, and ``axis_direction`` are different: they
-    control how primary-section directions are generated jointly, before
-    any individual section exists, so they are resolved once, before any
-    section is constructed. Primary sections are grouped by label, and
-    each group's directions are generated together (evenly distributed
-    over that group's own ``theta``/``phi`` range, then rotated by that
-    group's own ``axis_direction``), independently from every other
-    label's group. This replaces the previous count-keyed convention for
+    ``theta`` and ``phi`` are different: they control how primary-section
+    directions are generated jointly, before any individual section
+    exists, so they are resolved once, before any section is
+    constructed. Primary sections are grouped by label, and each group's
+    directions are generated together (evenly distributed over that
+    group's own ``theta``/``phi`` range, then rotated by that group's
+    own ``axis_direction``), independently from every other label's
+    group. This replaces the previous count-keyed convention for
     ``theta``/``phi`` (a dict used to be keyed by the *number* of
     primary sections; it is now keyed by *label*, like every other
-    resolvable parameter here).
+    resolvable parameter here). ``axis_direction`` is resolved for this
+    purpose too (once per label group), in addition to being resolved
+    per section as described above.
     """
     def _merge_profiles(self, profile_roots):
 
@@ -95,6 +99,7 @@ class MorphologySynthesizer:
         max_angle=np.pi / 2,
         elongation_random_weight=1.0,
         elongation_bias_weight=1.0,
+        correction_type=None,
         parent=None,
     ):
         """
@@ -120,7 +125,9 @@ class MorphologySynthesizer:
             above, resolved the same way as ``theta``.
         axis_direction : array_like or dict, optional
             Direction of the local axial frame in global coordinates.
-            May also be a dict mapping label to direction.
+            May also be a dict mapping label to direction. Also used, per
+            section, as the reference direction for a
+            ``correction_type="somatodendritic"`` section (see below).
         elongation_bias : ElongationBias, sequence, or dict, optional
             Elongation bias or weighted elongation biases. May also be a
             dict mapping label to any of the above, resolved per section
@@ -140,6 +147,19 @@ class MorphologySynthesizer:
         elongation_bias_weight : float or dict, default 1.0
             Global weight applied to elongation biases. May also be a
             dict mapping label to weight.
+        correction_type : None, "somatic", "somatodendritic", or dict, optional
+            Direction-correction mode applied by each
+            MorphologySectionSynthesizer during elongation (see
+            ``neuwalk.core.morphology.SectionSynthesizer``).
+            ``"somatodendritic"`` requires ``axis_direction`` to be set
+            for the same label. May also be a dict mapping label to one
+            of these three values, e.g.::
+
+                correction_type={
+                    "basal_dendrite": "somatic",
+                    "apical_dendrite": "somatodendritic",
+                }
+
         parent : Section, optional
             Existing section that the primary sections will be connected
             to directly, as independent roots. This is unrelated to
@@ -201,6 +221,7 @@ class MorphologySynthesizer:
         self.max_angle = max_angle
         self.elongation_random_weight = elongation_random_weight
         self.elongation_bias_weight = elongation_bias_weight
+        self.correction_type = correction_type
         self.active_sections = {}
         self.parent = parent
         self.soma = None
@@ -282,10 +303,8 @@ class MorphologySynthesizer:
 
             return "bifurcate"
 
-        if not profile.active:
-            return "annihilate"
 
-        return None
+        return "annihilate"
 
     @property
     def finished(self):
@@ -360,6 +379,7 @@ class MorphologySynthesizer:
                     elongation_random_weight=self._resolve(self.elongation_random_weight, profile.label),
                     elongation_bias_weight=self._resolve(self.elongation_bias_weight, profile.label),
                     axis_direction=self._resolve(self.axis_direction, profile.label),
+                    correction_type=self._resolve(self.correction_type, profile.label),
                 )
                 self.active_sections.setdefault(profile.order, []).append((profile, walk))
 
@@ -372,11 +392,11 @@ class MorphologySynthesizer:
         while self.active_sections:
             current_order = min(self.active_sections)
 
-            for _, walk in self.active_sections[current_order]:
-                # set eventual values for the sections
-                for name, value in overrides.items():
-                    setattr(walk, name, value)
-                walk.active = True
+##            for _, walk in self.active_sections[current_order]:
+##                # set eventual values for the sections
+##                for name, value in overrides.items():
+##                    setattr(walk, name, value)
+##                walk.active = True
 
             step = 0
 
@@ -390,8 +410,8 @@ class MorphologySynthesizer:
                 for section in current_sections:
                     profile, walk = section
 
-                    if not walk.active:
-                        continue
+##                    if not walk.active:
+##                        continue
 
                     event = self._next_event(section)
 
@@ -420,6 +440,14 @@ class MorphologySynthesizer:
                                 child_walk.max_angle = self._resolve(self.max_angle, child_walk.label)
                                 child_walk.elongation_random_weight = self._resolve(self.elongation_random_weight, child_walk.label)
                                 child_walk.elongation_bias_weight = self._resolve(self.elongation_bias_weight, child_walk.label)
+                                child_walk.axis_direction = self._resolve(self.axis_direction, child_walk.label)
+                                child_walk.correction_type = self._resolve(self.correction_type, child_walk.label)
+
+                                if child_walk.correction_type == "somatodendritic" and child_walk.axis_direction is None:
+                                    raise ValueError(
+                                        f"axis_direction is required for label {child_walk.label!r} "
+                                        "when its correction_type resolves to 'somatodendritic'."
+                                    )
 
                                 # add sections
                                 self.active_sections.setdefault(child_profile.order, []).append((child_profile, child_walk))                  

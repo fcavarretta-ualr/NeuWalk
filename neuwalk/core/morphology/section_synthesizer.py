@@ -32,6 +32,7 @@ class SectionSynthesizer(Section):
         elongation_bias_weight=1.0,
         max_step_size=5,
         axis_direction=None,
+        correction_type=None,
     ):
         """Initialize the random walk."""
 
@@ -143,15 +144,24 @@ class SectionSynthesizer(Section):
         
         self.max_step_size = max_step_size
 
-        axis_direction = np.asarray(axis_direction, dtype=float)
+        if axis_direction is not None:
+            axis_direction = np.asarray(axis_direction, dtype=float)
 
-        if axis_direction.shape != (3,):
-            raise ValueError("axis_direction must have shape (3,).")
+            if axis_direction.shape != (3,):
+                raise ValueError("axis_direction must have shape (3,).")
 
-        if np.isclose(np.linalg.norm(axis_direction), 0.0):
-            raise ValueError("axis_direction cannot be the zero vector.")
-        
+            if np.isclose(np.linalg.norm(axis_direction), 0.0):
+                raise ValueError("axis_direction cannot be the zero vector.")
+
         self.axis_direction = axis_direction
+
+        if correction_type not in (None, "somatic", "somatodendritic"):
+            raise ValueError("correction_type must be None, 'somatic', or 'somatodendritic'.")
+
+        if correction_type == "somatodendritic" and axis_direction is None:
+            raise ValueError("axis_direction is required when correction_type is 'somatodendritic'.")
+
+        self.correction_type = correction_type
 
 
     @property
@@ -214,13 +224,26 @@ class SectionSynthesizer(Section):
 
         return misc.to_unit_vector(displacement)
 
+    def _correction_direction(self):
+        """
+        Return the reference direction for this section's correction_type,
+        or None if no direction correction applies.
+        """
+        match self.correction_type:
+            case "somatic":
+                return self._centrifugal_direction()
+            case "somatodendritic":
+                return self.axis_direction.copy()
+            case None:
+                return None
+
     def _step_size(self, direction):
         """Return the step length accounting for the centrifugal component."""
         if not self.centrifugal:
             return self.step_size
 
         direction = misc.to_unit_vector(direction)
-        alignment = np.dot(direction, self._centrifugal_direction())
+        alignment = abs(np.dot(direction, self._centrifugal_direction()))
 
 
         return min(self.step_size / alignment, self.max_step_size)
@@ -228,8 +251,6 @@ class SectionSynthesizer(Section):
     def _generate_point(self, direction):
         """Generate a proposed point."""
         direction = misc.to_unit_vector(direction)
-        if self._step_size(direction) > 5:
-            print(self._step_size(direction))
         return self.current_point + self._step_size(direction) * direction
 
     def _sample_direction(self, reference_direction):
@@ -240,12 +261,14 @@ class SectionSynthesizer(Section):
     def elongate(self):
         """Propose an elongation move."""
         self._check_move_allowed()
+            
 
         direction = self.last_direction
         step_size = self._step_size(direction)
-        
-        # if it is the first point, do not compute bias
-        if not ( (self.parent is None or self.parent.label == "soma") and len(self.points) < 2 ):
+
+        # if it is not the first step, apply biases and randomness
+        if len(self.points) >= 2:
+            # if it is the first point, do not compute bias
             # calculate the effect of the bias
             for weight, bias in self.elongation_bias:
                 value = bias.compute(self.rng, self, direction)
@@ -268,27 +291,26 @@ class SectionSynthesizer(Section):
                 step_size = self._step_size(direction)
 
 
-        # random component
-        hill_value = misc.hill(
-            step_size,
-            self.elongation_random_hill_k,
-            self.elongation_random_hill_n,
-        )
+            # random component
+            hill_value = misc.hill(
+                step_size,
+                self.elongation_random_hill_k,
+                self.elongation_random_hill_n,
+            )
 
-        random_component = self._sample_direction(direction)
-        direction = misc.to_unit_vector(direction + random_component * self.elongation_random_weight * hill_value)
+            random_component = self._sample_direction(direction)
+            direction = misc.to_unit_vector(direction + random_component * self.elongation_random_weight * hill_value)
 
-        # check for centrifugal component
-        # if it is null, then correct the direction
-        if isinstance(self.axis_direction, np.ndarray) and np.dot(self.axis_direction, direction) < 0:
-            direction = self.axis_direction
-        #if self.centrifugal:
-        #    centrifugal_direction = self._centrifugal_direction()
-        #
-        #    if np.dot(direction, centrifugal_direction) <= 0.0:
-        #        direction = centrifugal_direction
+            # correct the direction if it points away from the reference
+            # direction for this section's correction_type
+            if self.parent and self.parent.label != "soma":
+                correction_direction = self._correction_direction()
+
+                if correction_direction is not None and np.dot(direction, correction_direction) <= 0.0:
+                    direction = correction_direction
 
         point = self._generate_point(direction)
+        #print(point, self.points[-1], self.current_point, self.current_point + self._step_size(direction) * direction, self._step_size(direction))
         self.pending_event = {"event": "elongation", "point": point, "direction": direction}
         return point
 

@@ -88,19 +88,37 @@ def sphere_surface_points(
     Generate deterministic points on a spherical surface region.
 
     ``theta`` is the polar angle measured from the positive z-axis and
-    must lie in ``[0, pi]``.
+    must lie in ``[0, pi]``. It is a bounded, non-periodic interval: 0
+    and pi are the two distinct poles, not the same point.
 
     ``phi`` is the azimuthal angle in the x-y plane and is periodic over
-    ``2*pi``.
+    ``2*pi``: 0 and 2*pi refer to the same point.
 
     ``theta`` and ``phi`` may each be either:
 
     - a scalar, fixing that angle;
     - a two-element sequence defining an angular interval.
 
-    When both angles are intervals, the points are distributed
-    approximately uniformly with respect to spherical surface area.
-    No random sampling is used.
+    When only one of ``theta``/``phi`` is an interval (the other fixed),
+    the ``n`` points are equally spaced over that interval:
+
+    - a ranging ``theta`` uses ``n`` points equally spaced over
+      ``[theta_min, theta_max]``, including both endpoints (as for
+      ``numpy.linspace``), since the two ends are genuinely distinct
+      poles.
+    - a ranging ``phi`` uses ``n`` points equally spaced starting at
+      ``phi_start`` and stepping by ``phi_span / n``, without a point
+      placed at the far end of the interval: for a full ``2*pi`` span
+      that far end is the same point as ``phi_start``, so including it
+      would duplicate a point.
+
+    When both angles are intervals, the ``n`` points are distributed
+    approximately uniformly, with respect to spherical surface area,
+    over the patch of the sphere they bound: equally spaced by area in
+    the polar direction (uniform in ``cos(theta)``), and spread across
+    the azimuthal range with a golden-angle step so points don't line
+    up into meridional rows. No random sampling is used anywhere in
+    this function.
 
     Parameters
     ----------
@@ -246,69 +264,44 @@ def sphere_surface_points(
 
     indices = np.arange(n, dtype=float)
 
-    # Midpoint locations avoid placing points directly on interval edges.
-    u = (indices + 0.5) / n
-
-    if theta_fixed:
-        theta_values = np.full(
-            n,
-            theta_min,
-            dtype=float,
-        )
+    if theta_fixed and phi_fixed:
+        # Both angles fixed: every point is the same point.
+        theta_values = np.full(n, theta_min, dtype=float)
+        phi_values = np.full(n, phi_start, dtype=float)
 
     elif phi_fixed:
-        # Uniform arc-length spacing along a meridian.
-        theta_values = (
-            theta_min
-            + u * (theta_max - theta_min)
-        )
-
-    else:
-        # Equal-area spacing in the polar direction.
-        cos_theta = (
-            np.cos(theta_min)
-            + u
-            * (
-                np.cos(theta_max)
-                - np.cos(theta_min)
-            )
-        )
-
-        theta_values = np.arccos(
-            np.clip(cos_theta, -1.0, 1.0)
-        )
-
-    if phi_fixed:
-        phi_values = np.full(
-            n,
-            phi_start,
-            dtype=float,
-        )
+        # theta ranges, phi is fixed: n points equally spaced along a
+        # meridian, including both poles of the range.
+        theta_values = np.linspace(theta_min, theta_max, n)
+        phi_values = np.full(n, phi_start, dtype=float)
 
     elif theta_fixed:
-        # Uniform spacing along a latitude circle.
+        # phi ranges, theta is fixed: n points equally spaced along a
+        # latitude circle, starting at phi_start. phi is periodic, so
+        # the far end of the interval is not given its own point when
+        # the span is a full circle (it would duplicate phi_start).
+        theta_values = np.full(n, theta_min, dtype=float)
         phi_values = (
             phi_start
-            + u * phi_span
+            + (indices / n) * phi_span
         ) % two_pi
 
     else:
-        # Golden-ratio sequence prevents the points from aligning
-        # into meridional rows.
-        golden_ratio_conjugate = (
-            np.sqrt(5.0) - 1.0
-        ) / 2.0
+        # Both angles range: approximately equal-area coverage of the
+        # spherical patch they bound. theta is equally spaced by area
+        # (uniform in cos(theta)); phi advances by the golden angle so
+        # points spiral across the patch instead of lining up in rows.
+        u = (indices + 0.5) / n
 
-        v = np.mod(
-            (indices + 0.5)
-            * golden_ratio_conjugate,
-            1.0,
+        cos_theta = (
+            np.cos(theta_min)
+            + u * (np.cos(theta_max) - np.cos(theta_min))
         )
+        theta_values = np.arccos(np.clip(cos_theta, -1.0, 1.0))
 
-        phi_values = (
-            phi_start
-            + v * phi_span
-        ) % two_pi
+        golden_ratio_conjugate = (np.sqrt(5.0) - 1.0) / 2.0
+        v = np.mod((indices + 0.5) * golden_ratio_conjugate, 1.0)
+        phi_values = (phi_start + v * phi_span) % two_pi
 
     sin_theta = np.sin(theta_values)
 

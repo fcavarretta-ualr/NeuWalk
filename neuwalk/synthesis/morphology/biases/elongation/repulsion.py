@@ -60,22 +60,25 @@ def section_repulsion(reference_section, reference_direction, sections, K, n, **
       
     if (K is None) != (n is None):
         raise ValueError("K and n must both be provided or both be None.")
-
-    # ghost point
-    ghost_point = reference_section._generate_point(reference_direction)
-
-    
-    result0 = _section_repulsion(reference_section,
+    result = _section_repulsion(reference_section,
                         reference_section.current_point,
                         sections, K, n)
-
-    result1 = _section_repulsion(reference_section,
-                        ghost_point,
-                        sections, K, n)
-
-    # result direction
-
-    result = (result0 + result1) * 0.5
+    
+##    # ghost point
+##    ghost_point = reference_section._generate_point(reference_direction)
+##
+##    
+##    result0 = _section_repulsion(reference_section,
+##                        reference_section.current_point,
+##                        sections, K, n)
+##
+##    result1 = _section_repulsion(reference_section,
+##                        ghost_point,
+##                        sections, K, n)
+##
+##    # result direction
+##
+##    result = (result0 + result1) * 0.5
 
     #weight = np.linalg.norm(result)
     #result_direction = result / weight

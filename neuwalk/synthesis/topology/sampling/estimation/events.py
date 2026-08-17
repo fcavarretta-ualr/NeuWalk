@@ -35,7 +35,7 @@ def _mk_objective(beta, gamma, Z, V, bin_size):
     return terms
 
 
-def _mk_bif_mean_constraint(beta, Z, gamma, bin_size, n_bif):
+def _mk_bif_mean_constraint(beta, Z, gamma, bin_size):
     """
     Add the mean constraint:
       sum_{i=1..len(Z)-1} term_i  ==  n_bif[0]
@@ -252,6 +252,8 @@ def event_rates(
     else:
         no_annihilation_bins = np.array(no_annihilation_bins[:i_non_zeros])
         
+
+    
     
         
     # Use bifurcation mean and variance if available; otherwise set to None
@@ -275,17 +277,14 @@ def event_rates(
 
     # some beta rates might be fixed
     for i in range(gamma.size):
-        if no_annihilation_bins[i] and (gamma[i] > 0 or np.isclose(gamma[i], 0)):
+        if no_annihilation_bins[i] and (gamma[i] >= 0 or np.isclose(gamma[i], 0)):
             model.b[i].fix(gamma[i])
-        elif no_bifurcation_bins[i] and (gamma[i] < 0 or np.isclose(gamma[i], 0)):
+        elif no_bifurcation_bins[i] and (gamma[i] <= 0 or np.isclose(gamma[i], 0)): 
             model.b[i].fix(0)
 
-##        if no_bifurcation_bins[i] and not no_annihilation_bins[i] and gamma[i] > 0:
-##            print('CASE-1', i, no_bifurcation_bins[i], no_annihilation_bins[i], gamma[i])
-##        if not no_bifurcation_bins[i] and no_annihilation_bins[i] and gamma[i] < 0:
-##            print('CASE-2', i, no_bifurcation_bins[i], no_annihilation_bins[i], gamma[i])   
+
     # define 1 slack variables for eventual constraints of variance of bifurcations
-    model.s = Var( domain=Reals)
+    model.s = Var(domain=Reals)
             
     # Constraint: 
     model.constraints = ConstraintList()     
@@ -294,7 +293,7 @@ def event_rates(
     if n_bif:        
         # constraint the average number of bifurcations
         if n_bif[0]:
-            mean_terms = _mk_bif_mean_constraint(model.b, Z, gamma, bin_size, n_bif[0])
+            mean_terms = _mk_bif_mean_constraint(model.b, Z, gamma, bin_size)
             model.constraints.add(sum(mean_terms) == n_bif[0])
         
         # constrain the variance for the number of bifurcations
@@ -315,6 +314,10 @@ def event_rates(
     solver.options["print_level"] = 0
     solver.options["sb"] = "yes"
     solver.solve(model, tee=False, report_timing=False)
+
+    # check bifurcation average
+    estimate_nbif = value(sum(x for x in _mk_bif_mean_constraint(model.b, Z, gamma, bin_size)))
+    assert np.isclose(estimate_nbif, n_bif[0]), f"Constraint for the average number of bifurcation is broken {estimate_nbif} {n_bif[0]}."
     
     # Extract bifurcation rates as array
     b = np.array([value(model.b[i]) for i in model.b])
