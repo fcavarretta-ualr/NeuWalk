@@ -221,6 +221,7 @@ class TopologySynthesizer:
         n_std=1.0,
         max_attempts_per_window=1,
         max_total_attempts=1000,
+        distance_limit=None,
         verbose=False,
     ):
         """
@@ -234,6 +235,15 @@ class TopologySynthesizer:
             Number of attempts before expanding the rollback window.
         max_total_attempts : int, default 1000
             Maximum number of total regeneration attempts.
+        distance_limit : float, optional
+            Maximum path distance the tree is grown to. When ``None``
+            (default), the tree is grown to the full extent of
+            ``sholl_plot_constraint``. When given, only Sholl bins
+            within it are generated and checked, and the
+            bifurcation-count check at the end is skipped entirely if
+            this means the tree doesn't reach the full Sholl extent.
+            See ``neuwalk.synthesis.topology._progressive_sholl_synthesis.synthesize_progressive``
+            for the full explanation.
         verbose : bool, default False
             Print synthesis and rollback progress.
 
@@ -248,6 +258,7 @@ class TopologySynthesizer:
             n_std=n_std,
             max_attempts_per_window=max_attempts_per_window,
             max_total_attempts=max_total_attempts,
+            distance_limit=distance_limit,
             verbose=verbose,
         )
 

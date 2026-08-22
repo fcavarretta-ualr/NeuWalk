@@ -21,16 +21,32 @@ def main():
     # extract statistics for basal, apical, and oblique sections
     # param contains the sections to be discarded
     discarded_sections = {
+<<<<<<< HEAD
       'basal_dendrite':["unknown", "apical_oblique", "apical_secondary_oblique", "apical_secondary_dendrite", "soma", "apical_dendrite"],
       'apical_dendrite':["unknown", "apical_oblique", "apical_secondary_oblique", "apical_secondary_dendrite", "soma", "basal_dendrite"],
       'apical_oblique':["unknown", "apical_dendrite", "apical_secondary_oblique", "apical_secondary_dendrite", "soma", "basal_dendrite"]
       }
 
+=======
+      'basal_dendrite':["unknown", "apical_oblique", "apical_secondary_oblique", "apical_secondary_dendrite", "soma", "apical_dendrite", "axon"],
+      'apical_dendrite':["unknown", "apical_oblique", "apical_secondary_oblique", "apical_secondary_dendrite", "soma", "basal_dendrite", "axon"],
+      'apical_oblique':["unknown", "apical_dendrite", "apical_secondary_oblique", "apical_secondary_dendrite", "soma", "basal_dendrite", "axon"]
+      }
+
+    
+    bifurcation_internal_density =  extract_statistics(
+      load_morphologies(args.directory,
+                        delete_labels=["unknown",  "apical_secondary_oblique", "apical_secondary_dendrite", "basal_dendrite", "soma", "axon"]),
+      bin_size=args.bin_size)['bifurcation_internal_density']
+    
+    
+>>>>>>> 21a7a56 (last version)
     # stat contains the statistics
     all_params = {}
     profiles = {}
     for label, delete_labels in discarded_sections.items():
       print(f"Elaboration of {label}")
+<<<<<<< HEAD
       
       print(f"\tExtracting statistics...", end="")
       params = extract_statistics(
@@ -46,14 +62,40 @@ def main():
       all_params[label]['bin_size'] = args.bin_size
       
     with open("parameters.json", "w") as file:
+=======
+
+      try:
+          print(f"\tExtracting statistics...", end="")
+          params = extract_statistics(
+            load_morphologies(args.directory, delete_labels=delete_labels),
+            bin_size=args.bin_size)
+          print("done")
+
+          # these params are not used for generation
+          params.pop("total_length", None)
+          params.pop("bifurcation_internal_density", None)
+            
+
+          all_params[label] = params.copy()
+          all_params[label]['bin_size'] = args.bin_size
+      except ValueError:
+        pass
+
+    all_params['apical_dendrite']['bifurcation_internal_density'] = bifurcation_internal_density
+    
+    with open("neuwalk/presets/neocortex/pyramidal.parameters.json", "w") as file:
+>>>>>>> 21a7a56 (last version)
       json.dump(all_params, file, indent=4, default=lambda value: value.tolist())
 
 
 
+<<<<<<< HEAD
 ##    for m in load_morphologies(args.directory, delete_labels=["unknown", "apical_oblique", "apical_secondary_oblique", "apical_secondary_dendrite", "basal_dendrite"]):
 ##        for dnd in m[0].wholetree:
 ##            if not dnd.children:
 ##                print(np.linalg.norm(dnd.points[-1]), dnd.length)
 ##        print(m[0].sholl_plot(10), m[0].points, m[0].children[0].points[0], m[0].children[1].points[0])
+=======
+>>>>>>> 21a7a56 (last version)
 if __name__ == "__main__":
     main()

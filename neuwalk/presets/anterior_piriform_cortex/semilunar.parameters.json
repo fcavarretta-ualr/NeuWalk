@@ -2,6 +2,7 @@
     "basal_dendrite": {
         "sholl_plot": {
             "mean": [
+<<<<<<< HEAD
                 2.3333333333333335,
                 2.3333333333333335,
                 2.6666666666666665,
@@ -17,12 +18,18 @@
                 1.3333333333333333,
                 1.3333333333333333,
                 1.3333333333333333,
+=======
+                2.0,
+                2.3333333333333335,
+                1.6666666666666667,
+>>>>>>> 21a7a56 (last version)
                 1.0,
                 1.0,
                 0.6666666666666666,
                 0.6666666666666666,
                 0.6666666666666666,
                 0.6666666666666666,
+<<<<<<< HEAD
                 0.6666666666666666,
                 1.0,
                 1.0,
@@ -62,11 +69,18 @@
                 0.816496580927726,
                 0.4714045207910317,
                 0.4714045207910317,
+=======
+                0.6666666666666666
+            ],
+            "std": [
+                1.4142135623730951,
+>>>>>>> 21a7a56 (last version)
                 0.4714045207910317,
                 0.4714045207910317,
                 0.0,
                 0.0,
                 0.4714045207910317,
+<<<<<<< HEAD
                 0.4714045207910317,
                 0.4714045207910317,
                 0.4714045207910317,
@@ -94,6 +108,12 @@
                 0.9428090415820634,
                 0.4714045207910317,
                 0.4714045207910317
+=======
+                0.9428090415820634,
+                0.9428090415820634,
+                0.9428090415820634,
+                0.9428090415820634
+>>>>>>> 21a7a56 (last version)
             ]
         },
         "bifurcation_count": {
@@ -105,53 +125,18 @@
             "max": 4
         },
         "no_bifurcation_bins": [
-            true,
-            false,
-            true,
-            true,
-            false,
-            false,
             false,
             false,
             true,
-            true,
-            true,
-            true,
-            true,
-            true,
-            true,
             false,
-            true,
-            true,
-            true,
-            true,
-            true,
             false,
-            true,
-            true,
-            true,
-            true,
-            true,
-            true,
-            true,
-            true,
-            true,
-            true,
-            true,
-            true,
-            true,
-            true,
-            true,
-            true,
-            true,
-            true,
-            true,
             true,
             true,
             true,
             true
         ],
         "no_annihilation_bins": [
+<<<<<<< HEAD
             true,
             true,
             true,
@@ -166,10 +151,16 @@
             true,
             true,
             true,
+=======
+            false,
+            false,
+            false,
+>>>>>>> 21a7a56 (last version)
             false,
             false,
             true,
             true,
+<<<<<<< HEAD
             true,
             true,
             true,
@@ -195,14 +186,17 @@
             true,
             true,
             false,
+=======
+>>>>>>> 21a7a56 (last version)
             true,
             true
         ],
-        "bin_size": 10.0
+        "bin_size": 50.0
     },
     "apical_dendrite": {
         "sholl_plot": {
             "mean": [
+<<<<<<< HEAD
                 2.3333333333333335,
                 2.3333333333333335,
                 3.3333333333333335,
@@ -288,85 +282,51 @@
                 0.4714045207910317,
                 1.247219128924647,
                 0.4714045207910317,
+=======
+                2.0,
+                4.333333333333333,
+                6.333333333333333,
+                8.666666666666666,
+                10.0,
+                10.666666666666666,
+                9.333333333333334,
+                6.0,
+                0.6666666666666666
+            ],
+            "std": [
+                0.0,
+                0.4714045207910317,
+                1.247219128924647,
+                4.642796092394707,
+                4.320493798938574,
+                4.642796092394707,
+                1.699673171197595,
+                2.8284271247461903,
+>>>>>>> 21a7a56 (last version)
                 0.4714045207910317
             ]
         },
         "bifurcation_count": {
-            "mean": 17.333333333333332,
-            "std": 5.90668171555645
+            "mean": 19.0,
+            "std": 7.0710678118654755
         },
         "primary_count_range": {
             "min": 2,
-            "max": 3
+            "max": 2
         },
         "no_bifurcation_bins": [
-            true,
-            false,
-            false,
-            false,
-            true,
-            false,
-            false,
-            false,
-            true,
-            false,
-            false,
-            true,
-            true,
-            true,
-            false,
-            false,
-            false,
-            false,
-            false,
-            true,
-            false,
-            false,
-            false,
-            false,
-            false,
-            true,
             false,
             false,
             false,
             false,
             false,
             false,
-            true,
-            true,
             false,
-            true,
-            true,
             false,
-            true,
-            true,
-            true,
             true
         ],
         "no_annihilation_bins": [
             true,
-            true,
-            true,
-            true,
-            true,
-            true,
-            true,
-            true,
-            false,
-            true,
-            true,
-            false,
-            true,
-            true,
-            false,
-            false,
-            true,
-            true,
-            false,
-            false,
-            false,
-            true,
-            true,
             false,
             false,
             false,
@@ -374,6 +334,7 @@
             false,
             false,
             false,
+<<<<<<< HEAD
             false,
             false,
             false,
@@ -386,7 +347,10 @@
             true,
             true,
             true
+=======
+            false
+>>>>>>> 21a7a56 (last version)
         ],
-        "bin_size": 10.0
+        "bin_size": 50.0
     }
 }

@@ -62,6 +62,8 @@ def synthesize_topologies(
             verbose=verbose
         )
 
+##        topol_synthesizer.synthesize()
+        
         ret[label] = {
             'topology': topol_synthesizer,
             }

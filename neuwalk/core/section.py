@@ -127,7 +127,14 @@ class Section(SectionObject):
             raise ValueError("max_distance cannot be negative.") 
         
         # create the histograms
+<<<<<<< HEAD
         n_bins = int(max_distance / bin_size)
+=======
+        # +1 to match __event__counts__'s own n_bins convention below;
+        # without it, the last bin (and any real events in it) was
+        # silently dropped by the [:n_bins] slice further down.
+        n_bins = int(max_distance / bin_size) + 1
+>>>>>>> 21a7a56 (last version)
 
         # get event_counts
         bifurcations, annihilations, internal_bifurcations = self.__event__counts__(bin_size)[1:]
@@ -250,7 +257,10 @@ class Section(SectionObject):
                         case 2:
                             bifurcations[bin_indices[-1]] += 1
                         case _:
+<<<<<<< HEAD
                             print(section.label, section.children[0].label, section.children[1].label)
+=======
+>>>>>>> 21a7a56 (last version)
                             raise ValueError("A section have both children of different types.")
                 case 1:
                     pass
@@ -260,11 +270,19 @@ class Section(SectionObject):
             # calculate sholl plots
             if section.parent is None or section.parent.label == "soma":
                 crossings[0] += 1
+<<<<<<< HEAD
 
             for bin0, bin1 in zip(bin_indices[:-1], bin_indices[1:]):
                 bin0, bin1 = min(bin0, bin1)+1, max(bin0, bin1)+1
                 crossings[bin0:bin1] += 1
 
+=======
+
+            for bin0, bin1 in zip(bin_indices[:-1], bin_indices[1:]):
+                bin0, bin1 = min(bin0, bin1)+1, max(bin0, bin1)+1
+                crossings[bin0:bin1] += 1
+        
+>>>>>>> 21a7a56 (last version)
         return crossings, bifurcations, annihilations, internal_bifurcations
 
 

@@ -155,8 +155,13 @@ class SectionSynthesizer(Section):
 
         self.axis_direction = axis_direction
 
+<<<<<<< HEAD
         if correction_type not in (None, "somatic", "somatodendritic"):
             raise ValueError("correction_type must be None, 'somatic', or 'somatodendritic'.")
+=======
+        if correction_type not in (None, "somatic", "somatodendritic", "root"):
+            raise ValueError("correction_type must be None, 'somatic', 'somatodendritic', or 'root'.")
+>>>>>>> 21a7a56 (last version)
 
         if correction_type == "somatodendritic" and axis_direction is None:
             raise ValueError("axis_direction is required when correction_type is 'somatodendritic'.")
@@ -214,16 +219,42 @@ class SectionSynthesizer(Section):
 
         return self.initial_direction.copy()
 
-    def _centrifugal_direction(self):
-        """Return the outward unit direction from the origin."""
+    def _outward_direction(self, origin):
+        """Return the outward unit direction from origin to the current point."""
 
-        displacement = self.current_point - self.origin
+        displacement = self.current_point - origin
 
         if np.isclose(np.linalg.norm(displacement), 0.0):
             return self.initial_direction.copy()
 
         return misc.to_unit_vector(displacement)
 
+<<<<<<< HEAD
+=======
+    def _centrifugal_direction(self):
+        """Return the outward unit direction from the origin."""
+        return self._outward_direction(self.origin)
+
+
+    def _root_direction(self):
+        def _root_section():
+            """
+            Return the root section of this section's current label-group:
+            the nearest ancestor (including this section itself) that has no
+            parent, or whose parent's label differs from its own.
+            """
+            section = self
+
+            while section.parent and section.parent.label == section.label:
+                section = section.parent
+
+            return section
+
+    
+        """Return the outward unit direction from this section's label-group root."""
+        return self._outward_direction(_root_section().points[0])
+
+>>>>>>> 21a7a56 (last version)
     def _correction_direction(self):
         """
         Return the reference direction for this section's correction_type,
@@ -234,6 +265,11 @@ class SectionSynthesizer(Section):
                 return self._centrifugal_direction()
             case "somatodendritic":
                 return self.axis_direction.copy()
+<<<<<<< HEAD
+=======
+            case "root":
+                return self._root_direction()
+>>>>>>> 21a7a56 (last version)
             case None:
                 return None
 

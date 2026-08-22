@@ -13,22 +13,22 @@ def generate(seed, cell_type, **kwargs):
     """Generate and return one neocortical pyramidal neuron."""
 
     # load the parameters
-    path = Path(__file__).resolve().parent / (cell_type + ".parameters.json")
+    path = Path(__file__).resolve().parent / (cell_type + ".parameters.corrected.json")
     all_params = json.loads(path.read_text())
 
     bin_size = kwargs.get("bin_size", 10.0)
-    step_size = kwargs.get("step_size", 1.0)
+    step_size = kwargs.get("step_size", 2.5)
     
     max_steps = kwargs.get("max_steps", 100)
     
     verbose = kwargs.get("verbose", False)
-    n_std = kwargs.get("n_std", 1.0)
+    n_std = kwargs.get("n_std", 3)
     max_attempts_per_window = kwargs.get("max_attempts_per_window", 10)
     max_total_attempts = kwargs.get("max_total_attempts", 1000)
 
 
     # density of oblique branch points
-    bifurcation_internal_density = all_params.pop("bifurcation_internal_density")
+    bifurcation_internal_density = all_params["apical_dendrite"].pop("bifurcation_internal_density")
 
     # generate the profiles for each label
     ret = _common.synthesize_topologies(
@@ -42,40 +42,51 @@ def generate(seed, cell_type, **kwargs):
         with_soma=lambda label: label != "apical_oblique",
     )
 
+
     # generate apical sections
     # connect obliques (before merging, while apical's topology soma
     # still only has apical's own primary sections as children)
     connect_internal_branches(ret['apical_oblique']['topology'].roots, ret['apical_dendrite']['topology'].soma.children, Random(seed), bifurcation_internal_density, bin_size)
-    
-    # spatial bias is a composition of truncated cones
-    spatial_bias = biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 0.]), (220., 0., 0.), (2.5, 2.5), (2.5, 2.5), 1, 1, strict=True) + \
-                   biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 220.]), (50., 0., 0.), (2.5, 2.5), (25.0, 75.0), 1, 1, strict=True) + \
-                   biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 270.]), (470., 0., 0.), (25.0, 75.0), (25.0, 75.0), 1, 1, strict=True) + \
-                   biases.get_elongation("truncated_cone_boundary", np.array([0., 0., 740.]), (160., 0., 0.), (25.0, 75.0), (150.0, 150.0), 1, 1, strict=True)
 
     # create self-avoidance bias
-    section_bias = biases.get_elongation("sibling_repulsion", 25.0, -2) +\
-                biases.get_elongation("nonrelated_repulsion", 25.0, -2)
+    section_bias = biases.get_elongation("sibling_repulsion", 10, -2) + biases.get_elongation("nonrelated_repulsion", 10, -2)
+    
+    # spatial bias is a composition of truncated cones
+    apical_spatial_bias = biases.get_elongation("plane_boundary", np.array([0., 0., 0.]), (0., 0.), None, None)
 
+    spatial_bias = biases.get_elongation("plane_boundary", np.array([0., 400, 0.]), (np.pi / 2, np.pi / 2 * 3), 200, -2.0)  + \
+                   biases.get_elongation("plane_boundary", np.array([0., -400, 0.]), (np.pi / 2, np.pi / 2), 200, -2.0)    
+    
     # somatic repulsion
-    somatic_bias = biases.get_elongation("root_repulsion", 750.0, -2, consider_root_like=True)
-
+    somatic_bias = biases.get_elongation("root_repulsion", None, None)
+    
+    # somatic repulsion
+    root_bias = biases.get_elongation("root_repulsion", None, None, consider_root_like=True)
+    
     # plane boundary, push the distal apical sections to bend
-    plane_bias = biases.get_elongation("plane_boundary", np.array([0., 0., 900.]), (np.pi, 0.), 10, -2)
+    plane_bias = biases.get_elongation("plane_boundary", np.array([0., 0., 1000.]), (np.pi, 0.), 150, -2)
 
     # compose the biases into the elongation bias, one per label
     apical_elongation_bias = [
-      (0.25, spatial_bias),
-      (0.005, section_bias),
-      (0.2, somatic_bias),
-      (0.1, plane_bias)
+      (0.2, apical_spatial_bias),
+      (0.006, section_bias),
+      (0.2, plane_bias),
+      (0.2, spatial_bias),
       ]
 
     basal_elongation_bias = [
-      (0.005, section_bias),
-      (0.2, somatic_bias)
+      (0.2, somatic_bias),
+      (0.006, section_bias),
+      (0.2, spatial_bias),
       ]
 
+    
+    oblique_elongation_bias = [
+      (0.2, root_bias),
+      (0.006, section_bias),
+      (0.2, spatial_bias),
+      ]
+    
     # bifurcation biases
     bifurcation_bias = biases.get_bifurcation("radial_torsion", np.pi / 3)
     
@@ -113,7 +124,18 @@ def generate(seed, cell_type, **kwargs):
             # here (not just at the third synthesize() call) because a
             # child's label is resolved as soon as the internal branch
             # point is reached, during the very first (order 0) pass
-            'apical_oblique': basal_elongation_bias,
+            'apical_oblique': oblique_elongation_bias,
+        },
+        elongation_random_weight=5,
+        elongation_bias_weight=2.5,
+        # obliques have no axis_direction, so they keep the default
+        # (no direction correction); only the primary apical and basal
+        # trunks get pulled back toward the soma's axis.
+        correction_type={
+            'apical_dendrite': 'somatodendritic',
+            'basal_dendrite': 'somatic',
+            'apical_oblique':'root',
+            'default': None,
         },
         # obliques have no axis_direction, so they keep the default
         # (no direction correction); only the primary apical and basal

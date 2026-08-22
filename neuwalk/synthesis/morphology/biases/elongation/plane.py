@@ -2,7 +2,7 @@ import numpy as np
 from ..bias import BiasRegistry
 from ..... import misc
 
-def plane_boundary(reference_section, origin, axis, K, n, strict=False):
+def plane_boundary(reference_section, reference_direction, origin, axis, K, n, strict=False, resistance=False):
 
   if (K is None) != (n is None):
     raise ValueError("K and n must both be provided or both be None.")
@@ -12,6 +12,9 @@ def plane_boundary(reference_section, origin, axis, K, n, strict=False):
   direction = reference_section.points[-1] - origin
 
   distance = np.dot(direction, axis_direction)
+
+  if resistance and np.dot(reference_direction, axis_direction) >= 0:
+    return None
 
   if strict and distance < 0:
     return None
@@ -23,5 +26,5 @@ def plane_boundary(reference_section, origin, axis, K, n, strict=False):
 
 
 @BiasRegistry.register_elongation("plane_boundary")
-def plane_boundary_bias(rng, reference_section, reference_direction, origin, axis, K, n, strict=False):
-  return plane_boundary(reference_section, origin, axis, K, n, strict=strict)
+def plane_boundary_bias(rng, reference_section, reference_direction, origin, axis, K, n, strict=False, resistance=False):
+  return plane_boundary(reference_section, reference_direction, origin, axis, K, n, strict=strict, resistance=resistance)

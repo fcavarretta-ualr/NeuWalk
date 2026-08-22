@@ -5,7 +5,11 @@ from scipy.stats import brunnermunzel, fligner
 # -------------------------
 # Bootstrap p-value helpers
 # -------------------------
+<<<<<<< HEAD
 def bootstrap_pvalue_mean_diff(x, y, nx=None, ny=None, B=10000, seed=42):
+=======
+def bootstrap_pvalue_mean_diff(x, y, nx=None, ny=None, B=10000, seed=84, ci=0.95):
+>>>>>>> 21a7a56 (last version)
     """
     Bootstrap p-value for H0: mean_x = mean_y using a null-imposed (shift) bootstrap.
     Two-sided p-value on the mean difference.
@@ -27,13 +31,21 @@ def bootstrap_pvalue_mean_diff(x, y, nx=None, ny=None, B=10000, seed=42):
     # Bootstrap under H0
     if nx is None:
         nx = x.size
+<<<<<<< HEAD
     if ny is None:
         ny = y.size
+=======
+        
+    if ny is None:
+        ny = y.size
+        
+>>>>>>> 21a7a56 (last version)
     stats = np.empty(B)
     for b in range(B):
         bx = rng.choice(x0, size=nx, replace=True)
         by = rng.choice(y0, size=ny, replace=True)
         stats[b] = np.mean(bx) - np.mean(by)
+<<<<<<< HEAD
 
     # Two-sided p with +1 pseudo-count to avoid zero
     p = (np.sum(np.abs(stats) >= abs(obs)) + 1) / (B + 1)
@@ -41,6 +53,24 @@ def bootstrap_pvalue_mean_diff(x, y, nx=None, ny=None, B=10000, seed=42):
 
 
 def bootstrap_pvalue_var_ratio(x, y, nx=None, ny=None, B=10000, seed=42):
+=======
+        
+    alpha = 1.0 - ci
+    ci_low, ci_high = np.percentile(stats, [100 * alpha / 2, 100 * (1 - alpha / 2)])
+    
+    # Two-sided p with +1 pseudo-count to avoid zero
+    p = (np.sum(np.abs(stats) >= abs(obs)) + 1) / (B + 1)
+    return {
+        'value_a':float(np.mean(x)),
+        'value_b':float(np.mean(y)),
+        'observed_diff':float(obs),
+        'ci_low':ci_low,
+        'ci_high':ci_high,
+        'p_value':float(p)
+        }
+
+def bootstrap_pvalue_var_ratio(x, y, nx=None, ny=None, B=10000, seed=84, ci=0.95):
+>>>>>>> 21a7a56 (last version)
     """
     Bootstrap p-value for H0: var_x = var_y using a null-imposed (scale) bootstrap.
     Two-sided p-value on the log variance ratio for symmetry.
@@ -65,6 +95,10 @@ def bootstrap_pvalue_var_ratio(x, y, nx=None, ny=None, B=10000, seed=42):
         nx = x.size
     if ny is None:
         ny = y.size
+<<<<<<< HEAD
+=======
+        
+>>>>>>> 21a7a56 (last version)
     stats = np.empty(B)
     for b in range(B):
         bx = rng.choice(x0, size=nx, replace=True)
@@ -73,7 +107,22 @@ def bootstrap_pvalue_var_ratio(x, y, nx=None, ny=None, B=10000, seed=42):
         stats[b] = np.log(vr)
 
     p = (np.sum(np.abs(stats) >= abs(obs)) + 1) / (B + 1)
+<<<<<<< HEAD
     return float(p), float(obs_ratio), stats  # stats is log-ratio under H0
+=======
+    
+    alpha = 1.0 - ci
+    ci_low, ci_high = np.percentile(stats, [100 * alpha / 2, 100 * (1 - alpha / 2)])
+    
+    return {
+        'value_a':float(np.var(x)),
+        'value_b':float(np.var(y)),
+        'observed_diff':float(obs),
+        'ci_low':ci_low,
+        'ci_high':ci_high,
+        'p_value':float(p)
+        }
+>>>>>>> 21a7a56 (last version)
 
 
 

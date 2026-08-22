@@ -7,7 +7,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from neuwalk.io import read_swc
+from neuwalk.analysis.morphologies import load_morphologies
 
+LABEL_DELETE_SETS = {
+    "basal_dendrite": ["unknown", "apical_oblique", "apical_secondary_oblique", "apical_secondary_dendrite", "soma", "apical_dendrite", "axon"],
+    "apical_dendrite": ["unknown", "apical_oblique", "apical_secondary_oblique", "apical_secondary_dendrite", "soma", "basal_dendrite", "axon"],
+    "apical_oblique": ["unknown", "apical_dendrite", "apical_secondary_oblique", "apical_secondary_dendrite", "soma", "basal_dendrite", "axon"],
+}
 
 def iter_sections(roots, labels=None):
     """Yield selected sections from all roots."""
@@ -42,32 +48,24 @@ def iter_segments(roots, labels=None):
 
 def total_length(roots, labels=None):
     """Return total length of selected sections."""
-    return sum(
-        np.linalg.norm(point_1 - point_0)
-        for point_0, point_1 in iter_segments(
-            roots,
-            labels,
-        )
-    )
+    total = 0
+    for root in roots:
+        if root.label == "soma":
+            total += total_length(root.children, labels=labels)
+        elif root.label in labels:
+            total += root.total_length
+    return total
 
 
 def bifurcation_count(roots, labels=None):
     """Return the number of bifurcations among selected sections."""
-    count = 0
-
-    for section in iter_sections(roots, labels):
-        selected_children = [
-            child
-            for child in section.children
-            if (
-                labels is None
-                or child.label in labels
-            )
-        ]
-
-        count += len(selected_children) >= 2
-
-    return count
+    cnt = 0
+    for root in roots:
+        if root.label == "soma":
+            cnt += bifurcation_count(root.children, labels=labels)
+        elif root.label in labels:
+            cnt += root.bifurcation_count
+    return cnt
 
 
 def sholl_plot(
@@ -152,9 +150,8 @@ def main():
         help="SWC file or directory containing SWC files.",
     )
     parser.add_argument(
-        "--labels",
+        "--label",
         type=str,
-        nargs="+",
         default=None,
         help="Optional SWC labels to include, e.g. 3 4.",
     )
@@ -198,26 +195,25 @@ def main():
     branch_counts = []
     lengths = []
 
-    for filename in files:
-        roots = read_swc(filename)
+    for roots in load_morphologies(args.path, delete_labels=LABEL_DELETE_SETS[args.label]):
 
         radii, counts = sholl_plot(
             roots,
             bin_size=args.bin_size,
-            labels=args.labels,
+            labels=[args.label],
         )
 
-        sholl_data.append((filename.stem, radii, counts))
+        sholl_data.append(("", radii, counts))
         branch_counts.append(
             bifurcation_count(
                 roots,
-                labels=args.labels,
+                labels=[args.label],
             )
         )
         lengths.append(
             total_length(
                 roots,
-                labels=args.labels,
+                labels=[args.label],
             )
         )
 
@@ -299,8 +295,8 @@ def main():
 
     section_label = (
         "all labels"
-        if args.labels is None
-        else f"labels: {args.labels}"
+        if args.label is None
+        else f"labels: {args.label}"
     )
 
     figure.suptitle(
@@ -308,8 +304,8 @@ def main():
     )
     figure.tight_layout()
 
-    print('bifurcation count', np.mean(branch_counts), np.std(branch_counts))
-    print('total length', np.mean(lengths), np.std(lengths))
+    print('bifurcation count', np.mean(branch_counts), np.std(branch_counts), np.min(branch_counts), np.max(branch_counts))
+    print('total length', np.mean(lengths), np.std(lengths), np.min(lengths), np.max(lengths))
 
     plt.show()
 

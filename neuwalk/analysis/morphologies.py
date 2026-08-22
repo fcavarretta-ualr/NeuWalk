@@ -14,7 +14,7 @@ def _all_sections(roots, non_soma_only=True):
     return ret
 
     
-def repair_sections(roots, tolerance=10, verbose=True):
+def repair_sections(roots, tolerance=0, verbose=True):
     """Remove consecutive duplicate points from every section in the tree."""
 
     # Fix all leaves
@@ -83,38 +83,40 @@ def repair_sections(roots, tolerance=10, verbose=True):
             
 def delete_consecutive_duplicate_points(roots):
     """Remove consecutive duplicate points from every section in the tree."""
-    for r in roots.copy():
-        for section in r.wholetree:
-            if len(section.points) < 2:
-                continue
+    for section in _all_sections(roots):
+        if len(section.points) < 2:
+            continue
 
-            points = [section.points[0]]
+        points = [section.points[0]]
 
-            for point in section.points[1:]:
-                if (point != points[-1]).any():
-                    points.append(point)
+        for point in section.points[1:]:
+            if (point != points[-1]).any():
+                points.append(point)
 
-            section.points = points
+        section.points = points
 
-            #assert len(section.points) > 1, "Section has less than 2 points."
 
 
 def delete_sections(roots, forbidden_labels):
-    for root in roots.copy():
-        for section in root.subtree:
 
-            # if a section is not of interested it is disconnected
-            if section.label in forbidden_labels:
-                section.disconnect()
-                
-                if section in roots:
-                    roots.remove(section)
+    # disconnect all the sections which not selected by type
+    # which equivalent to delete them as none reference to them
+    
+    for section in _all_sections(roots):
 
-                continue
+        # if a section is not of interested it is disconnected
+        if section.label in forbidden_labels:
+            section.disconnect()
 
-            # if it does not have parent it is a root
-            if not section.parent and section not in roots:
-                roots.append(section)
+            # if it is a root, it should be delete from the list
+            if section in roots:
+                roots.remove(section)
+
+            continue
+
+        # if a section has no parent should be in the roots
+        if not section.parent and section not in roots:
+            roots.append(section)
 
                 
 
@@ -123,7 +125,6 @@ def translate_sections(roots):
         source = root.points[0].copy()
         for section in root.subtree:
             section.points = [p-source for p in section.points]
-            #print(section.points, source)
 
     
 
@@ -134,14 +135,15 @@ def process_soma(roots):
 
     # check soma integrity
     for section in _all_sections(roots, non_soma_only=False):              
-        # delete somata
+        # merge all the somata
         if section.label == "soma":
             if section.parent and section.parent.label != "soma":
                 raise ValueError("Soma has a non-soma parent")
 
             soma.points += section.points
 
-    # calculate baricenter
+    # calculate baricenter of the soma
+    # so we have somata made by a single point
     soma.points = [np.mean(soma.points, axis=0)]
 
     # check soma integrity
@@ -165,19 +167,22 @@ def process_soma(roots):
 def process_morphology(roots, delete_labels=None):
     """Delete selected labels and optionally merge same-label single-child sections."""
     # 1. delete labels that are not of interest
+    # listed in delete_labels
+    # orphan sections not in delete labels
+    # are returned as roots
     delete_sections(roots, delete_labels)
 
     # 2. check all the sections and delete duplicated consecutive points
     delete_consecutive_duplicate_points(roots)
 
-    if "soma" not in delete_labels:
-        # 3. replace some with point centered on the origin
-        process_soma(roots)
+    #if "soma" not in delete_labels:
+    # 3. replace some with point centered on the origin
+    process_soma(roots)
     
     # 3. delete section with a single point
     # we are assuming that all sections have their connectivity already fixed
     # and all duplicated points removed
-    repair_sections(roots)
+    #repair_sections(roots)
     
     # 5. translate sections
     translate_sections(roots)
@@ -216,12 +221,12 @@ def load_morphologies(directory, delete_labels="unknown", return_file_names=Fals
         
         # neuron is represented as a list of roots
         m = read_swc(filename)
-
         # preprocess morphology
         process_morphology(m, delete_labels)
         
         # append morphology
         if m:
-            morphologies.append((filename, Neuron(m)) if return_file_names else Neuron(m))
+            m = Neuron(m)
+            morphologies.append((filename, m) if return_file_names else m)
 
     return morphologies

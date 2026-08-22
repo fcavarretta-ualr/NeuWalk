@@ -261,6 +261,7 @@ def event_rates(
 
     # calculate the gamma
     gamma = np.log(Z[1:] / Z[:-1]) / bin_size
+    
     # Initial value for b: copy gamma, clamp negatives to 0, then map index -> value
     init_b = dict(enumerate(gamma.clip(min=0).copy()))
 
@@ -275,6 +276,7 @@ def event_rates(
     model.b = Var(range(gamma.size), domain=NonNegativeReals, initialize=init_b, bounds=lambda model, i : (lower_bound[i], upper_bound[i]))
 
 
+<<<<<<< HEAD
     # some beta rates might be fixed
     for i in range(gamma.size):
         if no_annihilation_bins[i] and (gamma[i] >= 0 or np.isclose(gamma[i], 0)):
@@ -283,6 +285,16 @@ def event_rates(
             model.b[i].fix(0)
 
 
+=======
+##    # some beta rates might be fixed
+##    for i in range(gamma.size):
+##        if no_annihilation_bins[i] and (gamma[i] >= 0 or np.isclose(gamma[i], 0)):
+##            model.b[i].fix(gamma[i])
+##        elif no_bifurcation_bins[i] and (gamma[i] <= 0 or np.isclose(gamma[i], 0)): 
+##            model.b[i].fix(0)
+
+
+>>>>>>> 21a7a56 (last version)
     # define 1 slack variables for eventual constraints of variance of bifurcations
     model.s = Var(domain=Reals)
             
@@ -315,9 +327,20 @@ def event_rates(
     solver.options["sb"] = "yes"
     solver.solve(model, tee=False, report_timing=False)
 
+<<<<<<< HEAD
     # check bifurcation average
     estimate_nbif = value(sum(x for x in _mk_bif_mean_constraint(model.b, Z, gamma, bin_size)))
     assert np.isclose(estimate_nbif, n_bif[0]), f"Constraint for the average number of bifurcation is broken {estimate_nbif} {n_bif[0]}."
+=======
+    # check bifurcation average, but only if the mean constraint was
+    # actually added above (n_bif and n_bif[0] both truthy) -- this
+    # mirrors that condition exactly, since without it this unconditionally
+    # accessed n_bif[0], raising 'NoneType' object is not subscriptable
+    # whenever bifurcation_count wasn't provided at all.
+    if n_bif and n_bif[0]:
+        estimate_nbif = value(sum(x for x in _mk_bif_mean_constraint(model.b, Z, gamma, bin_size)))
+        assert np.isclose(estimate_nbif, n_bif[0]), f"Constraint for the average number of bifurcation is broken {estimate_nbif} {n_bif[0]}."
+>>>>>>> 21a7a56 (last version)
     
     # Extract bifurcation rates as array
     b = np.array([value(model.b[i]) for i in model.b])
@@ -326,9 +349,11 @@ def event_rates(
     # calculate annihilation rates
     a = - gamma + b   
     a[a < 0] = 0.
-
+    
     # implement barrier at the end of the sholl plots
     b = np.append(b, 0.)
     a = np.append(a, np.inf)
+
+
 
     return { 'bifurcation_rate':b, 'annihilation_rate':a }

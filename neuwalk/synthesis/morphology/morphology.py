@@ -147,13 +147,26 @@ class MorphologySynthesizer:
         elongation_bias_weight : float or dict, default 1.0
             Global weight applied to elongation biases. May also be a
             dict mapping label to weight.
+<<<<<<< HEAD
         correction_type : None, "somatic", "somatodendritic", or dict, optional
+=======
+        correction_type : None, "somatic", "somatodendritic", "root", or dict, optional
+>>>>>>> 21a7a56 (last version)
             Direction-correction mode applied by each
             MorphologySectionSynthesizer during elongation (see
             ``neuwalk.core.morphology.SectionSynthesizer``).
             ``"somatodendritic"`` requires ``axis_direction`` to be set
+<<<<<<< HEAD
             for the same label. May also be a dict mapping label to one
             of these three values, e.g.::
+=======
+            for the same label. ``"root"`` corrects toward the section's
+            own label-group root (the nearest ancestor with no parent,
+            or whose parent has a different label) rather than the
+            overall soma -- useful for a section grafted onto another
+            tree, such as an oblique. May also be a dict mapping label
+            to one of these four values, e.g.::
+>>>>>>> 21a7a56 (last version)
 
                 correction_type={
                     "basal_dendrite": "somatic",
@@ -255,7 +268,13 @@ class MorphologySynthesizer:
 
     def _resolve_primary_angles(self, label, n):
         """Resolve theta and phi independently for the given label."""
-        theta, phi = self._resolve(self.theta, label), self._resolve(self.phi, label)
+
+        def _internal_resolve(angles):
+            if not all(type(k) == int for k in angles.keys() if k != "default"):
+                return self._resolve(angles, label)
+            return angles
+
+        theta, phi = _internal_resolve(self.theta), _internal_resolve(self.phi)
 
         if isinstance(theta, dict):
             theta = theta.get(n, theta.get("default"))

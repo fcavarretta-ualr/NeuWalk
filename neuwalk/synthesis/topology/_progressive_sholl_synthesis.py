@@ -6,6 +6,7 @@ def synthesize_progressive(
     n_std=1.0,
     max_attempts_per_window=10,
     max_total_attempts=1000,
+    distance_limit=None,
     verbose=False,
 ):
     """
@@ -64,7 +65,7 @@ def synthesize_progressive(
         - ``event_sampler.bin_size``
         - ``event_sampler.step_size``
         - ``synthesis_logs``
-        - ``synthesize(max_steps=...)``
+        - ``synthesize(distance_limit=...)``
         - ``undo_synthesize()``
         - ``sholl_plot(max_distance=...)``
         - ``roots``, or ``soma`` if ``with_soma`` is True
@@ -85,6 +86,19 @@ def synthesize_progressive(
         shared between per-bin regeneration and whole-tree regeneration
         triggered by the bifurcation-count check. The tree is restored to
         its initial state if this limit is reached.
+
+    distance_limit : float, optional
+        Maximum path distance the tree is grown to, passed through to
+        ``tree.synthesize(distance_limit=...)``. When ``None`` (default),
+        the tree is grown to the full extent of ``tree.sholl_plot_constraint``,
+        exactly as before this parameter existed. When given, only Sholl
+        bins whose distance falls within ``distance_limit`` are generated
+        and checked; bins beyond it are neither grown nor validated. If
+        this means the tree does not reach the full Sholl extent, the
+        bifurcation-count check at the end is skipped entirely (even when
+        ``tree.bifurcation_count_constraint`` is set), since that count is
+        a property of the whole tree and is not meaningful for one that
+        was deliberately grown only part of the way.
 
     verbose : bool, default=False
         Print information about synthesis attempts, validation results,
@@ -113,15 +127,15 @@ def synthesize_progressive(
     Notes
     -----
     Bin zero initializes the primary sections using
-    ``tree.synthesize(max_steps=0)``. Every subsequent bin advances synthesis
-    by ``ceil(bin_size / step_size)`` steps.
+    ``tree.synthesize(distance_limit=0)``. Every subsequent bin advances
+    synthesis to ``distance_limit=bin_size * bin_index``.
     """
 
     def _log(message):
         if verbose:
             print(f"[progressive synthesis] {message}")
 
-    mean, std = _validate(tree, n_std, max_attempts_per_window, max_total_attempts)
+    mean, std = _validate(tree, n_std, max_attempts_per_window, max_total_attempts, distance_limit)
 
     # Convert one Sholl bin into synthesis steps.
     bin_size = float(tree.event_sampler.bin_size)
@@ -131,14 +145,24 @@ def synthesize_progressive(
     base_log_count = len(tree.synthesis_logs)
     total_attempts = 0
 
+    # How many Sholl bins distance_limit actually reaches: bin i is grown
+    # via tree.synthesize(distance_limit=bin_size * i) (see _regenerate_window),
+    # so bin i is reachable exactly when bin_size * i <= distance_limit.
+    if distance_limit is None:
+        n_bins = len(mean)
+        reaches_full_extent = True
+    else:
+        n_bins = min(len(mean), int(distance_limit // bin_size) + 1)
+        reaches_full_extent = n_bins >= len(mean)
+
     if verbose:
         _log("Sholl plot")
         _log("-" * 48)
-        for i, (m, s) in enumerate(zip(mean, std)):
+        for i, (m, s) in enumerate(zip(mean[:n_bins], std[:n_bins])):
             _log(f"{i * bin_size}\t{round(m - n_std * s, 1)}\t{round(m + n_std * s, 1)}")
         _log("-" * 48)
 
-    _log(f"Starting synthesis for {len(mean)} bins.")
+    _log(f"Starting synthesis for {n_bins} bins.")
 
     while True:
         # Record the accepted state after each bin, reset for every
@@ -146,7 +170,7 @@ def synthesize_progressive(
         checkpoints = []
 
         # Accept one Sholl bin at a time.
-        for target_bin in range(len(mean)):
+        for target_bin in range(n_bins):
             start_bin = target_bin
 
             while True:
@@ -179,8 +203,14 @@ def synthesize_progressive(
 
                 break
 
-        # Every Sholl bin was accepted. If no bifurcation-count constraint
-        # was given, synthesis is done.
+        # Every Sholl bin (within distance_limit, if given) was accepted.
+        # bifurcation_count is a whole-tree statistic, so it is only
+        # checked when the tree was actually grown to the full Sholl
+        # extent -- never when distance_limit stopped it short.
+        if not reaches_full_extent:
+            _log("distance_limit is below the full Sholl extent; skipping the bifurcation-count check.")
+            break
+
         if tree.bifurcation_count_constraint is None:
             break
 
@@ -269,7 +299,7 @@ def _rollback(tree, log_count, _log):
         tree.undo_synthesize()
 
 
-def _validate(tree, n_std, max_attempts_per_window, max_total_attempts):
+def _validate(tree, n_std, max_attempts_per_window, max_total_attempts, distance_limit):
     """Validate the tree interface and synthesis arguments.
 
     Returns
@@ -284,10 +314,15 @@ def _validate(tree, n_std, max_attempts_per_window, max_total_attempts):
         raise ValueError("max_attempts_per_window must be positive.")
     if max_total_attempts <= 0:
         raise ValueError("max_total_attempts must be positive.")
+    if distance_limit is not None:
+        if not isinstance(distance_limit, (int, float)) or isinstance(distance_limit, bool):
+            raise TypeError("distance_limit must be a number or None.")
+        if distance_limit < 0:
+            raise ValueError("distance_limit cannot be negative.")
 
     # --- Tree interface validation ---
     if not callable(getattr(tree, "synthesize", None)):
-        raise TypeError("tree must provide synthesize(max_steps=...).")
+        raise TypeError("tree must provide synthesize(distance_limit=...).")
     if not callable(getattr(tree, "undo_synthesize", None)):
         raise TypeError("tree must provide undo_synthesize().")
     if not callable(getattr(tree, "sholl_plot", None)):
