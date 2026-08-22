@@ -155,13 +155,8 @@ class SectionSynthesizer(Section):
 
         self.axis_direction = axis_direction
 
-<<<<<<< HEAD
-        if correction_type not in (None, "somatic", "somatodendritic"):
-            raise ValueError("correction_type must be None, 'somatic', or 'somatodendritic'.")
-=======
         if correction_type not in (None, "somatic", "somatodendritic", "root"):
             raise ValueError("correction_type must be None, 'somatic', 'somatodendritic', or 'root'.")
->>>>>>> 21a7a56 (last version)
 
         if correction_type == "somatodendritic" and axis_direction is None:
             raise ValueError("axis_direction is required when correction_type is 'somatodendritic'.")
@@ -229,8 +224,6 @@ class SectionSynthesizer(Section):
 
         return misc.to_unit_vector(displacement)
 
-<<<<<<< HEAD
-=======
     def _centrifugal_direction(self):
         """Return the outward unit direction from the origin."""
         return self._outward_direction(self.origin)
@@ -254,7 +247,6 @@ class SectionSynthesizer(Section):
         """Return the outward unit direction from this section's label-group root."""
         return self._outward_direction(_root_section().points[0])
 
->>>>>>> 21a7a56 (last version)
     def _correction_direction(self):
         """
         Return the reference direction for this section's correction_type,
@@ -265,11 +257,8 @@ class SectionSynthesizer(Section):
                 return self._centrifugal_direction()
             case "somatodendritic":
                 return self.axis_direction.copy()
-<<<<<<< HEAD
-=======
             case "root":
                 return self._root_direction()
->>>>>>> 21a7a56 (last version)
             case None:
                 return None
 

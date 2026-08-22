@@ -276,16 +276,6 @@ def event_rates(
     model.b = Var(range(gamma.size), domain=NonNegativeReals, initialize=init_b, bounds=lambda model, i : (lower_bound[i], upper_bound[i]))
 
 
-<<<<<<< HEAD
-    # some beta rates might be fixed
-    for i in range(gamma.size):
-        if no_annihilation_bins[i] and (gamma[i] >= 0 or np.isclose(gamma[i], 0)):
-            model.b[i].fix(gamma[i])
-        elif no_bifurcation_bins[i] and (gamma[i] <= 0 or np.isclose(gamma[i], 0)): 
-            model.b[i].fix(0)
-
-
-=======
 ##    # some beta rates might be fixed
 ##    for i in range(gamma.size):
 ##        if no_annihilation_bins[i] and (gamma[i] >= 0 or np.isclose(gamma[i], 0)):
@@ -294,7 +284,6 @@ def event_rates(
 ##            model.b[i].fix(0)
 
 
->>>>>>> 21a7a56 (last version)
     # define 1 slack variables for eventual constraints of variance of bifurcations
     model.s = Var(domain=Reals)
             
@@ -327,11 +316,6 @@ def event_rates(
     solver.options["sb"] = "yes"
     solver.solve(model, tee=False, report_timing=False)
 
-<<<<<<< HEAD
-    # check bifurcation average
-    estimate_nbif = value(sum(x for x in _mk_bif_mean_constraint(model.b, Z, gamma, bin_size)))
-    assert np.isclose(estimate_nbif, n_bif[0]), f"Constraint for the average number of bifurcation is broken {estimate_nbif} {n_bif[0]}."
-=======
     # check bifurcation average, but only if the mean constraint was
     # actually added above (n_bif and n_bif[0] both truthy) -- this
     # mirrors that condition exactly, since without it this unconditionally
@@ -340,7 +324,6 @@ def event_rates(
     if n_bif and n_bif[0]:
         estimate_nbif = value(sum(x for x in _mk_bif_mean_constraint(model.b, Z, gamma, bin_size)))
         assert np.isclose(estimate_nbif, n_bif[0]), f"Constraint for the average number of bifurcation is broken {estimate_nbif} {n_bif[0]}."
->>>>>>> 21a7a56 (last version)
     
     # Extract bifurcation rates as array
     b = np.array([value(model.b[i]) for i in model.b])

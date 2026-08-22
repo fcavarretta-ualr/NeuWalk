@@ -137,14 +137,6 @@ def generate(seed, cell_type, **kwargs):
             'apical_oblique':'root',
             'default': None,
         },
-        # obliques have no axis_direction, so they keep the default
-        # (no direction correction); only the primary apical and basal
-        # trunks get pulled back toward the soma's axis.
-        correction_type={
-            'apical_dendrite': 'somatodendritic',
-            'basal_dendrite': 'somatodendritic',
-            'default': None,
-        },
     )
 
     # synthesize() now runs every order (apical, basal, then the
