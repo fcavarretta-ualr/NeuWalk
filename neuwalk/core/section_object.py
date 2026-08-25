@@ -36,7 +36,6 @@ class SectionObject:
         
         self._parent = None
         self._children = []
-        self.is_root_like = False
 
         if parent is not None:
             self.connect(parent, relation="parent")
@@ -174,9 +173,14 @@ class SectionObject:
 
     @staticmethod
     def _root_and_depth(section, consider_root_like=False):
+      orig_label = section.label
+      
       depth = 0
 
-      while section.parent and not (consider_root_like and section.is_root_like):
+      while section.parent:
+        if consider_root_like and section.parent.label != orig_label:
+          break
+        
         depth += 1
         section = section.parent
 

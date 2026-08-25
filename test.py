@@ -1,8 +1,10 @@
 
-from neuwalk.presets.anterior_piriform_cortex.pyramidal import generate
+#from neuwalk.presets.anterior_piriform_cortex.pyramidal import generate
 #from neuwalk.presets.anterior_piriform_cortex.semilunar import generate
-directory = "PYR"
+#directory = "PYR"
 #directory = "SL"
+from neuwalk.presets.neocortex.pyramidal import generate
+directory = "NEOPYR"
 from neuwalk.io import swc
 import sys
 

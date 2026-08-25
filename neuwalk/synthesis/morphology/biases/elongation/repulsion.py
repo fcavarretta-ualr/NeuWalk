@@ -88,33 +88,40 @@ def section_repulsion(reference_section, reference_direction, sections, K, n, **
 
 
 @BiasRegistry.register_elongation("sibling_repulsion")
-def sibling_repulsion(rng, random_walk, reference_direction, K, n, **kwargs):
-    if random_walk.is_root_like:
-        return None
+def sibling_repulsion(rng, random_walk, reference_direction, K, n, consider_root_like=False, **kwargs):
     sections = random_walk.siblings
+    
+    if consider_root_like:
+        sections = [section for section in sections if section.label == random_walk.label]
+        
     return section_repulsion(random_walk, reference_direction, sections, K, n, **kwargs)
 
 
 @BiasRegistry.register_elongation("parent_repulsion")
-def parent_repulsion(rng, random_walk, reference_direction, K, n, **kwargs):
-    if random_walk.is_root_like:
-        return None
+def parent_repulsion(rng, random_walk, reference_direction, K, n, consider_root_like=False, **kwargs):
     sections = [random_walk.parent] if random_walk.parent else []
-    return section_repulsion(random_walk, reference_direction, sections, K, n, **kwargs)
+    
+    if consider_root_like:
+        sections = [section for section in sections if section.label == random_walk.label]
+        
+    return section_repulsion(random_walk, reference_direction, sections, K, n, consider_root_like=False, **kwargs)
 
 
 @BiasRegistry.register_elongation("all_sections_repulsion")
-def all_sections_repulsion(rng, random_walk, reference_direction, K, n, **kwargs):
+def all_sections_repulsion(rng, random_walk, reference_direction, K, n, consider_root_like=False, **kwargs):
     sections = [
         d for d in random_walk.wholetree
         if d is not random_walk and d.label != "soma"
     ]
-
-    return section_repulsion(random_walk, reference_direction, sections, K, n, **kwargs)
+    
+    if consider_root_like:
+        sections = [section for section in sections if section.label == random_walk.label]
+        
+    return section_repulsion(random_walk, reference_direction, sections, K, n, consider_root_like=False, **kwargs)
 
 
 @BiasRegistry.register_elongation("nonrelated_repulsion")
-def nonrelated_repulsion(rng, random_walk, reference_direction, K, n, **kwargs):
+def nonrelated_repulsion(rng, random_walk, reference_direction, K, n, consider_root_like=False, **kwargs):
     sections = [
         d for d in random_walk.root.wholetree
         if d is not random_walk and d.label != "soma"
@@ -123,7 +130,10 @@ def nonrelated_repulsion(rng, random_walk, reference_direction, K, n, **kwargs):
     parent = [random_walk.parent] if random_walk.parent else []
     siblings =  random_walk.siblings
     sections = list(set(sections) - set(parent) - set(siblings))
-
+    
+    if consider_root_like:
+        sections = [section for section in sections if section.label == random_walk.label]
+        
     return section_repulsion(random_walk, reference_direction, sections, K, n, **kwargs)
   
 
@@ -133,7 +143,7 @@ def nonrelated_repulsion(rng, random_walk, reference_direction, K, n, **kwargs):
 def root_repulsion_bias(rng, reference_section, reference_direction, K, n, consider_root_like=False, **kwargs):
     # get the root   
     root = Section._root_and_depth(reference_section, consider_root_like=consider_root_like)['root']
-    
+
     if (K is None) != (n is None):
         raise ValueError("K and n must both be provided or both be None.")
 

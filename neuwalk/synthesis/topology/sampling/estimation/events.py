@@ -276,8 +276,10 @@ def event_rates(
     model.b = Var(range(gamma.size), domain=NonNegativeReals, initialize=init_b, bounds=lambda model, i : (lower_bound[i], upper_bound[i]))
 
 
-##    # some beta rates might be fixed
-##    for i in range(gamma.size):
+    # some beta rates might be fixed
+    for i in range(gamma.size):
+        if np.isclose(gamma[i], 0.) and np.isclose(V[i], 0.) and np.isclose(V[i+1], 0.):
+            model.b[i].fix(0.)
 ##        if no_annihilation_bins[i] and (gamma[i] >= 0 or np.isclose(gamma[i], 0)):
 ##            model.b[i].fix(gamma[i])
 ##        elif no_bifurcation_bins[i] and (gamma[i] <= 0 or np.isclose(gamma[i], 0)): 

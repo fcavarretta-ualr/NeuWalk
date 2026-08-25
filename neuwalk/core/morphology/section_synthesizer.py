@@ -264,11 +264,15 @@ class SectionSynthesizer(Section):
 
     def _step_size(self, direction):
         """Return the step length accounting for the centrifugal component."""
-        if not self.centrifugal:
+        if not self.correction_type:
             return self.step_size
 
+        correction_direction = self._correction_direction()
         direction = misc.to_unit_vector(direction)
-        alignment = abs(np.dot(direction, self._centrifugal_direction()))
+        alignment = np.dot(direction, correction_direction)
+
+        if alignment < 0:
+            return self.step_size
 
 
         return min(self.step_size / alignment, self.max_step_size)

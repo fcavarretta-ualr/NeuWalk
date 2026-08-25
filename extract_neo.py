@@ -14,7 +14,7 @@ import json
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("directory", type=Path)
-    parser.add_argument("--bin-size", type=float, default=10.0)
+    parser.add_argument("--bin-size", type=float, default=50.0)
     args = parser.parse_args()
 
 
