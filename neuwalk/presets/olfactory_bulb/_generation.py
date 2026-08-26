@@ -95,16 +95,16 @@ def generate(seed, cell_type, **kwargs):
 
     
     # load the parameters
-    path = Path(__file__).resolve().parent / (cell_type + ".parameters.json")
+    path = Path(__file__).resolve().parent / (cell_type + ".parameters.corrected.json")
     all_params = json.loads(path.read_text())
 
-    bin_size = kwargs.get("bin_size", 10.0)
-    step_size = kwargs.get("step_size", 1.0)
+    bin_size = kwargs.get("bin_size", 50.0)
+    step_size = kwargs.get("step_size", 2.0)
     
     max_steps = kwargs.get("max_steps", 100)
     
     verbose = kwargs.get("verbose", False)
-    n_std = kwargs.get("n_std", 1.0)
+    n_std = kwargs.get("n_std", 3.0)
     max_attempts_per_window = kwargs.get("max_attempts_per_window", 10)
     max_total_attempts = kwargs.get("max_total_attempts", 1000)
 
@@ -137,16 +137,17 @@ def generate(seed, cell_type, **kwargs):
 
 
     # create self-avoidance bias
-    section_bias = biases.get_elongation("sibling_repulsion", 25.0, -2) +\
-                biases.get_elongation("nonrelated_repulsion", 25.0, -2)
+    section_bias = biases.get_elongation("sibling_repulsion", 20.0, -2) +\
+                biases.get_elongation("nonrelated_repulsion", 10.0, -2)
 
     # somatic repulsion
-    somatic_bias = biases.get_elongation("root_repulsion", 750.0, -2)
+    somatic_bias = biases.get_elongation("root_repulsion", None, None)
+    
     # compose the biases into the elongation bias
-    elongation_bias = [
-      (0.25, spatial_bias),
-      (0.005, section_bias),
-      (0.2, somatic_bias)
+    basal_elongation_bias = [
+      (0.01, somatic_bias),
+      (0.001, section_bias),
+      (0.015, spatial_bias),
       ]
     
     # bifurcation biases
@@ -162,7 +163,10 @@ def generate(seed, cell_type, **kwargs):
         phi=(0., 2 * np.pi),
         axis_direction=axis_direction,
         bifurcation_bias=bifurcation_bias,
-        elongation_bias=elongation_bias,
+        elongation_bias=basal_elongation_bias,
+        correction_type="somatic",
+        elongation_random_weight=1.0,
+        elongation_bias_weight=3,
     )
 
     # synthesize apical sections

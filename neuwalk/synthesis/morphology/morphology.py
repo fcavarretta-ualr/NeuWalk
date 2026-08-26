@@ -261,9 +261,13 @@ class MorphologySynthesizer:
         """Resolve theta and phi independently for the given label."""
 
         def _internal_resolve(angles):
-            if not all(type(k) == int for k in angles.keys() if k != "default"):
+            if np.isscalar(angles):
+                return angles
+            elif type(angles) == tuple and all(np.isscalar(k) for k in angles):
+                return angles
+            elif not all(type(k) == int for k in angles.keys() if k != "default"):
                 return self._resolve(angles, label)
-            return angles
+            raise TypeError("Unknown type for initial angle(s).")
 
         theta, phi = _internal_resolve(self.theta), _internal_resolve(self.phi)
 

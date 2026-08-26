@@ -226,33 +226,37 @@ def sholl_plot(roots, bin_size):
 
 
 def compare_sholl_plots(dir_a, dir_b, bin_size, n_resamples, ci, rng):
-    print()
-    print(f"Sholl-plot crossings by bin, mean and variance, by label (bin_size={bin_size})")
-    print("-" * 100)
-
-    for label in LABELS:
-        neurons_a = load_dataset(dir_a, label)
-        neurons_b = load_dataset(dir_b, label)
-
-        raw_a = [sholl_plot(n, bin_size) for n in neurons_a]
-        raw_b = [sholl_plot(n, bin_size) for n in neurons_b]
-
-        n_bins = max(len(arr) for arr in raw_a + raw_b)
-
-        sholl_a = np.array([np.pad(arr, (0, n_bins - len(arr))) for arr in raw_a])
-        sholl_b = np.array([np.pad(arr, (0, n_bins - len(arr))) for arr in raw_b])
 
         print()
-        print(f"  {label}")
+        print(f"Sholl-plot crossings by bin, mean and variance, by label (bin_size={bin_size})")
+        print("-" * 100)
 
-        for i in range(n_bins):
-            bin_label = f"bin {i} [{i * bin_size:.0f}, {(i + 1) * bin_size:.0f})"
+        for label in LABELS:
+            try:
+                neurons_a = load_dataset(dir_a, label)
+                neurons_b = load_dataset(dir_b, label)
 
-            result = bs.bootstrap_pvalue_mean_diff(sholl_a[:, i], sholl_b[:, i], B=n_resamples)
-            print_comparison(f"{bin_label} mean", result, p=0.01 / n_bins)
+                raw_a = [sholl_plot(n, bin_size) for n in neurons_a]
+                raw_b = [sholl_plot(n, bin_size) for n in neurons_b]
 
-            result = bs.bootstrap_pvalue_var_ratio(sholl_a[:, i], sholl_b[:, i], B=n_resamples)
-            print_comparison(f"{bin_label} variance", result, p=0.01 / n_bins)
+                n_bins = max(len(arr) for arr in raw_a + raw_b)
+
+                sholl_a = np.array([np.pad(arr, (0, n_bins - len(arr))) for arr in raw_a])
+                sholl_b = np.array([np.pad(arr, (0, n_bins - len(arr))) for arr in raw_b])
+
+                print()
+                print(f"  {label}")
+
+                for i in range(n_bins):
+                    bin_label = f"bin {i} [{i * bin_size:.0f}, {(i + 1) * bin_size:.0f})"
+
+                    result = bs.bootstrap_pvalue_mean_diff(sholl_a[:, i], sholl_b[:, i], B=n_resamples)
+                    print_comparison(f"{bin_label} mean", result, p=0.01 / n_bins)
+
+                    result = bs.bootstrap_pvalue_var_ratio(sholl_a[:, i], sholl_b[:, i], B=n_resamples)
+                    print_comparison(f"{bin_label} variance", result, p=0.01 / n_bins)
+            except:
+                print(f'An error has occurred so Sholl plots will not be compared for {label}.')
 
 
 def main():

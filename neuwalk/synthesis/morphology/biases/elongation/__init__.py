@@ -17,3 +17,7 @@ from .plane import (
 from .attraction import (
   attraction_bias
 )
+
+from .ellipsoid import (
+  ellipsoid_boundary_bias
+)

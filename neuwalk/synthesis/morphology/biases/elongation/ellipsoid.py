@@ -11,7 +11,8 @@ def ellipsoid_boundary(
   depth=None,
   center=None,
   orientation=None,
-  strict=False):
+  strict=False,
+  resistance=True):
 
   
 
@@ -55,7 +56,7 @@ def ellipsoid_boundary(
   normal_direction = sign * misc.EllipsoidalCoordinates.normal_direction(reference_section.points[-1], radii, center=center)
 
   # if it is already aligned, do not correct
-  if np.dot(normal_direction, reference_direction) > 0:
+  if resistance and np.dot(normal_direction, reference_direction) > 0:
     return None
 
 
@@ -76,7 +77,8 @@ def ellipsoid_boundary_bias(
     depth=None,
     center=None,
     orientation=None,
-    strict=False
+    strict=False,
+    resistance=True
 ):
 
 
@@ -89,5 +91,6 @@ def ellipsoid_boundary_bias(
       depth=depth,
       center=center,
       orientation=orientation,
-      strict=strict
+      strict=strict,
+      resistance=resistance
     )
