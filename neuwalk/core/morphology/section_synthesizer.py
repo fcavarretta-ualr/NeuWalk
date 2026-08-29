@@ -240,7 +240,6 @@ class SectionSynthesizer(Section):
 
             while section.parent and section.parent.label == section.label:
                 section = section.parent
-
             return section
 
     
@@ -273,7 +272,6 @@ class SectionSynthesizer(Section):
 
         if alignment < 0:
             return self.step_size
-
 
         return min(self.step_size / alignment, self.max_step_size)
 
@@ -332,14 +330,14 @@ class SectionSynthesizer(Section):
 
             # correct the direction if it points away from the reference
             # direction for this section's correction_type
-            if self.parent and self.parent.label != "soma":
-                correction_direction = self._correction_direction()
+            correction_direction = self._correction_direction()
 
-                if correction_direction is not None and np.dot(direction, correction_direction) <= 0.0:
-                    direction = correction_direction
+            if correction_direction is not None and np.dot(direction, correction_direction) < 0.0:
+                direction = correction_direction
+                
 
         point = self._generate_point(direction)
-        #print(point, self.points[-1], self.current_point, self.current_point + self._step_size(direction) * direction, self._step_size(direction))
+
         self.pending_event = {"event": "elongation", "point": point, "direction": direction}
         return point
 
@@ -366,7 +364,6 @@ class SectionSynthesizer(Section):
                 self._sample_direction(self.last_direction),
                 self._sample_direction(self.last_direction)
                 )
-
     
         children = []
 

@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 from neuwalk.presets._common import synthesize_topologies
 
 
-LABELS = ("apical_dendrite", "basal_dendrite", "apical_oblique")
+LABELS = ("basal_dendrite", "apical_dendrite") #, "basal_dendrite", "apical_oblique")
 
 
 def load_params(path):
@@ -91,7 +91,7 @@ def run_batch(all_params, n_seeds, step_size, n_std, max_attempts_per_window, ma
                 results[label]["bifurcation_count"].append(values["bifurcation_count"])
                 results[label]["sholl_plot"].append(values["sholl_plot"])
 
-            print(f"seed {seed} done {one_result['apical_dendrite']['bifurcation_count']}")
+            #print(f"seed {seed} done {one_result['apical_dendrite']['bifurcation_count']}")
 
     return results
 
@@ -193,8 +193,8 @@ def main():
     parser.add_argument("--n-seeds", type=int, default=200, help="Number of seeds to synthesize (default: 200).")
     parser.add_argument("--step-size", type=float, default=2.0)
     parser.add_argument("--n-std", type=float, default=3.0)
-    parser.add_argument("--max-attempts-per-window", type=int, default=25)
-    parser.add_argument("--max-total-attempts", type=int, default=1000)
+    parser.add_argument("--max-attempts-per-window", type=int, default=100)
+    parser.add_argument("--max-total-attempts", type=int, default=5000)
     parser.add_argument("--max-workers", type=int, default=None, help="Thread pool size (default: os.cpu_count()).")
     parser.add_argument("--seed", type=int, default=None, help="Random seed for the experimental Normal-sample overlay.")
     parser.add_argument("--bifurcation-plot", default="bifurcation_count.png")

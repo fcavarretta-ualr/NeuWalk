@@ -23,7 +23,7 @@ def generate(seed, cell_type, **kwargs):
     
     verbose = kwargs.get("verbose", False)
     n_std = kwargs.get("n_std", 3)
-    max_attempts_per_window = kwargs.get("max_attempts_per_window", 10)
+    max_attempts_per_window = kwargs.get("max_attempts_per_window", 50)
     max_total_attempts = kwargs.get("max_total_attempts", 1000)
 
 
@@ -73,7 +73,7 @@ def generate(seed, cell_type, **kwargs):
     apical_elongation_bias = [
       (0.04, apical_spatial_bias),
       (0.001, section_bias),
-      (0.1, plane_bias),
+      (0.06, plane_bias),
       (0.015, spatial_bias),
       ]
 
@@ -135,10 +135,8 @@ def generate(seed, cell_type, **kwargs):
         # (no direction correction); only the primary apical and basal
         # trunks get pulled back toward the soma's axis.
         correction_type={
-            'apical_dendrite': 'somatodendritic',
-            'basal_dendrite': 'somatic',
-            'apical_oblique':'root',
-            'default': None,
+            'apical_oblique':None, #'root',
+            'default': 'somatic',
         },
     )
 

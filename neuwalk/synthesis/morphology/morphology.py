@@ -260,24 +260,27 @@ class MorphologySynthesizer:
     def _resolve_primary_angles(self, label, n):
         """Resolve theta and phi independently for the given label."""
 
-        def _internal_resolve(angles):
-            if np.isscalar(angles):
+        def _internal_resolve(angles, section_allowed=True):
+            if isinstance(angles, dict):
+                # check if the angles are listed by sections
+                if section_allowed and all(type(k) == str for k in angles if k != "default"):
+                    return _internal_resolve(
+                        angles.get(label, angles.get("default")), section_allowed=False)
+                
+                # check if they are listed by number of branches
+                elif all(type(k) == int for k in angles if k != "default"):
+                    return angles.get(n, angles.get("default"))
+                
+            # numbers or intervals
+            elif np.isscalar(angles) or \
+                    type(angles) == tuple and len(angles) == 2 and all(np.isscalar(k) for k in angles):
                 return angles
-            elif type(angles) == tuple and all(np.isscalar(k) for k in angles):
-                return angles
-            elif not all(type(k) == int for k in angles.keys() if k != "default"):
-                return self._resolve(angles, label)
+            
             raise TypeError("Unknown type for initial angle(s).")
+                    
 
-        theta, phi = _internal_resolve(self.theta), _internal_resolve(self.phi)
+        return _internal_resolve(self.theta), _internal_resolve(self.phi)
 
-        if isinstance(theta, dict):
-            theta = theta.get(n, theta.get("default"))
-
-        if isinstance(phi, dict):
-            phi = phi.get(n, phi.get("default"))
-
-        return theta, phi
 
     def _next_event(self, section):
         """
@@ -312,7 +315,7 @@ class MorphologySynthesizer:
                     "A bifurcation must have exactly two children."
                 )
 
-            if profile.children[0].order != profile.order or profile.children[1].order != profile.order:
+            if profile.children[0].label != profile.label or profile.children[1].label != profile.label:
                 return "bifurcate_internal"
 
             return "bifurcate"
@@ -386,7 +389,6 @@ class MorphologySynthesizer:
                     elongation_bias=self._resolve(self.elongation_bias, profile.label),
                     bifurcation_bias=self._resolve(self.bifurcation_bias, profile.label),
                     bifurcation_internal_bias=self._resolve(self.bifurcation_internal_bias, profile.label),
-                    centrifugal=self._resolve(self.centrifugal, profile.label),
                     parent=attachment,
                     label=profile.label,
                     max_angle=self._resolve(self.max_angle, profile.label),
@@ -450,18 +452,11 @@ class MorphologySynthesizer:
                                 child_walk.elongation_bias = self._resolve(self.elongation_bias, child_walk.label)
                                 child_walk.bifurcation_bias = self._resolve(self.bifurcation_bias, child_walk.label)
                                 child_walk.bifurcation_internal_bias = self._resolve(self.bifurcation_internal_bias, child_walk.label)
-                                child_walk.centrifugal = self._resolve(self.centrifugal, child_walk.label)
                                 child_walk.max_angle = self._resolve(self.max_angle, child_walk.label)
                                 child_walk.elongation_random_weight = self._resolve(self.elongation_random_weight, child_walk.label)
                                 child_walk.elongation_bias_weight = self._resolve(self.elongation_bias_weight, child_walk.label)
                                 child_walk.axis_direction = self._resolve(self.axis_direction, child_walk.label)
                                 child_walk.correction_type = self._resolve(self.correction_type, child_walk.label)
-
-                                if child_walk.correction_type == "somatodendritic" and child_walk.axis_direction is None:
-                                    raise ValueError(
-                                        f"axis_direction is required for label {child_walk.label!r} "
-                                        "when its correction_type resolves to 'somatodendritic'."
-                                    )
 
                                 # add sections
                                 self.active_sections.setdefault(child_profile.order, []).append((child_profile, child_walk))                  

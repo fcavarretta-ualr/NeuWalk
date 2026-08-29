@@ -62,7 +62,7 @@ def load_dataset(directory, label):
     LABEL_DELETE_SETS), leaving each primary section of the target
     label as its own, separate root.
     """
-    return load_morphologies(directory, delete_labels=LABEL_DELETE_SETS[label])
+    return load_morphologies(directory, delete_labels=LABEL_DELETE_SETS[label], soma_processing=False)
 
 
 
@@ -87,70 +87,7 @@ def label_total_length(roots):
     return sum(section.total_length for section in roots)
 
 
-def bootstrap_compare(a, b, statistic=np.mean, n_resamples=10000, ci=0.95, rng=None):
-    """
-    Compare two independent samples via bootstrap resampling of the
-    difference in a chosen statistic (statistic(a) - statistic(b)).
 
-    Parameters
-    ----------
-    a, b : array-like
-        Independent samples (e.g. one value per neuron), from dataset A
-        and dataset B respectively.
-    statistic : callable, default numpy.mean
-        Statistic to compare, e.g. numpy.mean or numpy.var. Called as
-        statistic(array) -> float.
-    n_resamples : int, default 10000
-        Number of bootstrap resamples.
-    ci : float, default 0.95
-        Confidence level for the reported interval.
-    rng : numpy.random.Generator, optional
-        Random number generator. A fresh, unseeded one is created if not
-        given.
-
-    Returns
-    -------
-    dict
-        value_a, value_b, observed_diff, ci_low, ci_high, p_value.
-    """
-    if rng is None:
-        rng = np.random.default_rng()
-
-    a = np.asarray(a, dtype=float)
-    b = np.asarray(b, dtype=float)
-
-    if a.size == 0 or b.size == 0:
-        raise ValueError("Both samples must be nonempty.")
-
-    value_a = statistic(a)
-    value_b = statistic(b)
-    observed_diff = value_a - value_b
-
-    boot_diffs = np.empty(n_resamples)
-
-    for i in range(n_resamples):
-        resample_a = rng.choice(a, size=a.size, replace=True)
-        resample_b = rng.choice(b, size=b.size, replace=True)
-        boot_diffs[i] = statistic(resample_a) - statistic(resample_b)
-
-    alpha = 1.0 - ci
-    ci_low, ci_high = np.percentile(boot_diffs, [100 * alpha / 2, 100 * (1 - alpha / 2)])
-
-    # Two-sided bootstrap p-value: how often the bootstrap difference
-    # falls on the opposite side of zero from the observed direction,
-    # doubled for two-sidedness, capped at 1.
-    p_low = np.mean(boot_diffs <= 0.0)
-    p_high = np.mean(boot_diffs >= 0.0)
-    p_value = min(2.0 * min(p_low, p_high), 1.0)
-
-    return {
-        "value_a": float(value_a),
-        "value_b": float(value_b),
-        "observed_diff": float(observed_diff),
-        "ci_low": float(ci_low),
-        "ci_high": float(ci_high),
-        "p_value": float(p_value),
-    }
 
 
 def print_comparison(title, result, p=0.01):
@@ -173,22 +110,26 @@ def compare_label_metrics(dir_a, dir_b, n_resamples, ci, rng):
         neurons_a = load_dataset(dir_a, label)
         neurons_b = load_dataset(dir_b, label)
 
+        if len(neurons_a) <= 2 or len(neurons_b) <= 2:
+            print(f"{label} cannot be analyzed due to lack of samples.")
+            continue
+
         bif_a = [label_bifurcation_count(n) for n in neurons_a]
         bif_b = [label_bifurcation_count(n) for n in neurons_b]
 
-        result = bs.bootstrap_pvalue_mean_diff(bif_a, bif_b, B=n_resamples)
+        result = bs.bootstrap_pvalue_mean_diff(rng, bif_a, bif_b, B=n_resamples)
         print_comparison(f"{label}: bifurcation count mean", result)
 
-        result = bs.bootstrap_pvalue_var_ratio(bif_a, bif_b, B=n_resamples)
+        result = bs.bootstrap_pvalue_var_ratio(rng, bif_a, bif_b, B=n_resamples)
         print_comparison(f"{label}: bifurcation count variance", result)
 
         len_a = [label_total_length(n) for n in neurons_a]
         len_b = [label_total_length(n) for n in neurons_b]
 
-        result = bs.bootstrap_pvalue_mean_diff(len_a, len_b, B=n_resamples)
+        result = bs.bootstrap_pvalue_mean_diff(rng, len_a, len_b, B=n_resamples)
         print_comparison(f"{label}: total length mean", result)
 
-        result = bs.bootstrap_pvalue_var_ratio(len_a, len_b, B=n_resamples)
+        result = bs.bootstrap_pvalue_var_ratio(rng, len_a, len_b, B=n_resamples)
         print_comparison(f"{label}: total length variance", result)
 
 
@@ -215,6 +156,7 @@ def sholl_plot(roots, bin_size):
         section reaches; a neuron with no sections of this label
         returns an all-zero array of length 1.
     """
+        
     tmp_sholl_plots = [r.sholl_plot(bin_size) for r in roots]
     max_len = max(sp.size for sp in tmp_sholl_plots)
     sholl_plots = []
@@ -250,36 +192,35 @@ def compare_sholl_plots(dir_a, dir_b, bin_size, n_resamples, ci, rng):
                 for i in range(n_bins):
                     bin_label = f"bin {i} [{i * bin_size:.0f}, {(i + 1) * bin_size:.0f})"
 
-                    result = bs.bootstrap_pvalue_mean_diff(sholl_a[:, i], sholl_b[:, i], B=n_resamples)
+                    result = bs.bootstrap_pvalue_mean_diff(rng, sholl_a[:, i], sholl_b[:, i], B=n_resamples)
                     print_comparison(f"{bin_label} mean", result, p=0.01 / n_bins)
 
-                    result = bs.bootstrap_pvalue_var_ratio(sholl_a[:, i], sholl_b[:, i], B=n_resamples)
+                    result = bs.bootstrap_pvalue_var_ratio(rng, sholl_a[:, i], sholl_b[:, i], B=n_resamples)
                     print_comparison(f"{bin_label} variance", result, p=0.01 / n_bins)
-            except:
-                print(f'An error has occurred so Sholl plots will not be compared for {label}.')
+            except ValueError:
+                pass
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("dir_a", help="Directory containing dataset A's .swc files.")
     parser.add_argument("dir_b", help="Directory containing dataset B's .swc files.")
-    parser.add_argument("--bin-size", type=float, default=50.0, help="Sholl bin width (default: 10.0).")
+    parser.add_argument("--bin-size", type=float, default=50.0, help="Sholl bin width (default: 50.0).")
     parser.add_argument("--n-resamples", type=int, default=10000, help="Number of bootstrap resamples (default: 10000).")
-    parser.add_argument("--ci", type=float, default=0.95, help="Confidence level for intervals (default: 0.95).")
-    parser.add_argument("--seed", type=int, default=None, help="Random seed, for reproducible bootstrap results.")
+    parser.add_argument("--ci", type=float, default=0.99, help="Confidence level for intervals (default: 0.95).")
+    parser.add_argument("--seed", type=int, default=56, help="Random seed, for reproducible bootstrap results.")
     args = parser.parse_args()
 
     rng = np.random.default_rng(args.seed)
 
     print(f"Dataset A: {args.dir_a}")
     print(f"Dataset B: {args.dir_b}")
-    print("(each label loaded and processed separately, matching extract_apc.py's own per-label delete_labels)")
 
     compare_label_metrics(args.dir_a, args.dir_b, args.n_resamples, args.ci, rng)
     compare_sholl_plots(args.dir_a, args.dir_b, args.bin_size, args.n_resamples, args.ci, rng)
 
     print()
-    print("* marks a difference with bootstrap p < 0.05.")
+    print("* marks a difference with bootstrap p < 0.01.")
 
 
 if __name__ == "__main__":

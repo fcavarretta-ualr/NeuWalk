@@ -23,7 +23,7 @@ def generate(seed, cell_type, **kwargs):
     
     verbose = kwargs.get("verbose", False)
     n_std = kwargs.get("n_std", 3)
-    max_attempts_per_window = kwargs.get("max_attempts_per_window", 25)
+    max_attempts_per_window = kwargs.get("max_attempts_per_window", 50)
     max_total_attempts = kwargs.get("max_total_attempts", 1000)
 
     # generate the profiles for each label
@@ -91,7 +91,7 @@ def generate(seed, cell_type, **kwargs):
         elongation_bias={'apical_dendrite': apical_elongation_bias, 'basal_dendrite': basal_elongation_bias},
         elongation_random_weight=0.5,
         elongation_bias_weight=2.0,
-        correction_type='somatodendritic'
+        correction_type='somatic'
     )
 
     # synthesize() now runs both orders (apical, then basal) to

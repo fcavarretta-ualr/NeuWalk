@@ -5,16 +5,15 @@ from scipy.stats import brunnermunzel, fligner
 # -------------------------
 # Bootstrap p-value helpers
 # -------------------------
-def bootstrap_pvalue_mean_diff(x, y, nx=None, ny=None, B=10000, seed=84, ci=0.95):
+def bootstrap_pvalue_mean_diff(rng, x, y, nx=None, ny=None, B=10000, ci=0.95):
     """
     Bootstrap p-value for H0: mean_x = mean_y using a null-imposed (shift) bootstrap.
     Two-sided p-value on the mean difference.
     """
-    rng = np.random.default_rng(seed)
     x = np.asarray(x, float); x = x[~np.isnan(x)]
     y = np.asarray(y, float); y = y[~np.isnan(y)]
     if x.size < 2 or y.size < 2:
-        raise ValueError("Each group needs at least 2 observations.")
+        raise ValueError(f"Each group needs at least 2 observations {x.size} {y.size}.")
 
     # Observed statistic
     obs = np.mean(x) - np.mean(y)
@@ -51,16 +50,16 @@ def bootstrap_pvalue_mean_diff(x, y, nx=None, ny=None, B=10000, seed=84, ci=0.95
         'p_value':float(p)
         }
 
-def bootstrap_pvalue_var_ratio(x, y, nx=None, ny=None, B=10000, seed=84, ci=0.95):
+def bootstrap_pvalue_var_ratio(rng, x, y, nx=None, ny=None, B=10000, ci=0.95):
     """
     Bootstrap p-value for H0: var_x = var_y using a null-imposed (scale) bootstrap.
     Two-sided p-value on the log variance ratio for symmetry.
     """
-    rng = np.random.default_rng(seed)
+
     x = np.asarray(x, float); x = x[~np.isnan(x)]
     y = np.asarray(y, float); y = y[~np.isnan(y)]
     if x.size < 2 or y.size < 2:
-        raise ValueError("Each group needs at least 2 observations.")
+        raise ValueError(f"Each group needs at least 2 observations {x.size} {y.size}.")
 
     # Observed (use log-ratio for symmetric tails)
     vx = np.var(x, ddof=1); vy = np.var(y, ddof=1)

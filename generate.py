@@ -1,11 +1,13 @@
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from neuwalk.presets.olfactory_bulb.mitral import generate as generate_mitral
-from neuwalk.presets.anterior_piriform_cortex.pyramidal import generate as generate_apc_pyramidal
-from neuwalk.presets.olfactory_bulb.middle_tufted import generate as generate_tufted
+
 from neuwalk.presets.anterior_piriform_cortex.semilunar import generate as generate_apc_semilunar
+from neuwalk.presets.anterior_piriform_cortex.pyramidal import generate as generate_apc_pyramidal
 from neuwalk.presets.neocortex.pyramidal import generate as generate_neocortical_pyradamidal
+from neuwalk.presets.olfactory_bulb.mitral import generate as generate_mitral
+from neuwalk.presets.olfactory_bulb.middle_tufted import generate as generate_tufted
+
 import neuwalk.io.swc as swc
 
 
@@ -69,12 +71,9 @@ def generate(func, filename_fmt, n=200, max_workers=None):
 
 
 
-#generate(generate_neocortical_pyradamidal, "synthetic/Neocortex/PYR.1.5SDs/cell%d.swc", max_workers=14)
-#generate(generate_apc_semilunar, "synthetic/aPC/SL/cell%d.swc", max_workers=28)
-#generate(generate_apc_pyramidal, "synthetic/aPC/PYR/cell%d.swc", max_workers=28)
-#generate(generate_apc_semilunar, "synthetic/aPC/SL.1.5SDs/cell%d.swc", max_workers=14)
-#generate(generate_apc_pyramidal, "synthetic/aPC/PYR.1.5SDs/cell%d.swc", max_workers=14)
-#generate(generate_neocortical_pyradamidal, "synthetic/Neocortex/PYR/cell%d.swc", max_workers=14)
-#generate(generate_apc_pyramidal, "synthetic/aPC/PYR/cell%d.swc", max_workers=14)
-#generate(generate_mitral, "synthetic/OB/MITRAL/cell%d.swc")
-generate(generate_tufted, "synthetic/OB/TUFTED/cell%d.swc")
+if __name__ == "__main__":
+    generate(generate_apc_semilunar, "synthetic/aPC/SL/cell%d.swc", max_workers=28)
+    generate(generate_apc_pyramidal, "synthetic/aPC/PYR/cell%d.swc", max_workers=28)
+    generate(generate_mitral, "synthetic/OB/MITRAL/cell%d.swc", max_workers=28)
+    generate(generate_tufted, "synthetic/OB/TUFTED/cell%d.swc", n=202, max_workers=28)
+    generate(generate_neocortical_pyradamidal, "synthetic/Neocortex/PYR/cell%d.swc", max_workers=28)

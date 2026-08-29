@@ -48,7 +48,6 @@ import numpy as np
 
 from neuwalk.random import Random
 from neuwalk.synthesis import TopologySynthesizer
-from neuwalk.synthesis.topology.sampling.estimation import event_rates, initial_count_pmf
 
 
 LABELS = ("apical_dendrite", "basal_dendrite", "apical_oblique")
@@ -80,45 +79,17 @@ def _filter_to_topology_synthesizer_kwargs(label_params):
     return {key: value for key, value in label_params.items() if key in valid_keys}
 
 
-def _build_and_grow_one_tree(label, seed, step_size, n_std, max_attempts_per_window, max_total_attempts, distance_limit,
-                              other_kwargs, sholl_plot, bifurcation_density, annihilation_density, primary_count_min, init_count_cdf):
-    """
-    Construct one fresh TopologySynthesizer using PRE-COMPUTED
-    bifurcation_density/annihilation_density (solved once by
-    build_and_grow_trees and shared across every tree it builds)
-    instead of passing sholl_plot= directly, which would make this
-    tree's own construction independently re-solve event_rates.
-    primary_count_min/init_count_cdf are set the same way, since a
-    tree given densities directly can't also be given
-    primary_count_range= (TopologySynthesizer forwards both
-    unconditionally to EventSampler, which rejects sholl_plot/
-    primary_count_range together with direct densities) -- they're
-    plain attributes, not properties with validation, so this is safe.
+def _build_and_grow_one_tree(label_params, label, seed, step_size, n_std, max_attempts_per_window, max_total_attempts, distance_limit):
+    """Construct one fresh TopologySynthesizer and grow it via its own synthesize_progressive. Runs in a worker thread."""
+    filtered_params = _filter_to_topology_synthesizer_kwargs(label_params)
 
-    tree.sholl_plot_constraint is set manually the same way, for a
-    different reason: synthesize_progressive's OWN validation
-    (mean/std it checks each bin against) reads this attribute
-    directly, separately from whatever densities actually drive
-    sampling -- bypassing sholl_plot= at construction to avoid the
-    redundant event_rates solve means this never gets set at all
-    otherwise, and synthesize_progressive raises
-    "tree.sholl_plot_constraint is required." the moment it runs.
-
-    Then grows the tree via its own synthesize_progressive. Runs in a
-    worker thread.
-    """
     tree = TopologySynthesizer(
         Random(seed),
         step_size=step_size,
         label=label,
         with_soma=(label != "apical_oblique"),
-        bifurcation_density=bifurcation_density,
-        annihilation_density=annihilation_density,
-        **other_kwargs,
+        **filtered_params,
     )
-    tree.sholl_plot_constraint = sholl_plot
-    tree.main_event_sampler.primary_count_min = primary_count_min
-    tree.main_event_sampler.init_count_cdf = init_count_cdf
 
     tree.synthesize_progressive(
         n_std=n_std,
@@ -133,58 +104,12 @@ def _build_and_grow_one_tree(label, seed, step_size, n_std, max_attempts_per_win
 
 def build_and_grow_trees(label_params, label, n_generations, step_size, n_std, max_attempts_per_window, max_total_attempts,
                           distance_limit, max_workers):
-    """
-    Build and grow n_generations fresh trees in parallel; return the
-    list of grown trees.
-
-    event_rates is solved ONCE here, not once per tree: it's
-    deterministic given label_params (it doesn't depend on the seed at
-    all), so letting each of the n_generations trees independently
-    trigger its own solve via its own construction is pure, repeated
-    waste of the single most expensive step in the whole pipeline.
-    Nothing here persists beyond this one call -- the next call to
-    build_and_grow_trees (the next iteration, or the next bin) solves
-    its own rates fresh, from whatever label_params looks like at that
-    point; there is no state carried between calls, only shared within
-    the n_generations trees built by one call.
-    """
-    filtered_params = _filter_to_topology_synthesizer_kwargs(label_params)
-    bin_size = filtered_params["bin_size"]
-
-    rates = event_rates(
-        bin_size,
-        filtered_params["sholl_plot"],
-        step_size,
-        bifurcation_count=filtered_params.get("bifurcation_count"),
-        no_bifurcation_bins=filtered_params.get("no_bifurcation_bins"),
-        no_annihilation_bins=filtered_params.get("no_annihilation_bins"),
-    )
-
-    primary_count_range = filtered_params.get("primary_count_range")
-    primary_count_min = None
-    init_count_cdf = None
-
-    if primary_count_range is not None:
-        sholl_plot = filtered_params["sholl_plot"]
-        primary_count_min = int(primary_count_range["min"])
-        probabilities = initial_count_pmf(
-            sholl_plot["mean"][0], sholl_plot["std"][0],
-            primary_count_range["min"], primary_count_range["max"],
-        )
-        init_count_cdf = np.cumsum(probabilities)
-
-    other_kwargs = {
-        key: value
-        for key, value in filtered_params.items()
-        if key not in ("sholl_plot", "primary_count_range")
-    }
-
+    """Build and grow n_generations fresh trees in parallel; return the list of grown trees."""
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         return list(executor.map(
             lambda seed: _build_and_grow_one_tree(
-                label, seed, step_size, n_std, max_attempts_per_window, max_total_attempts, distance_limit,
-                other_kwargs, filtered_params["sholl_plot"], rates["bifurcation_rate"], rates["annihilation_rate"],
-                primary_count_min, init_count_cdf,
+                label_params, label, seed, step_size, n_std, max_attempts_per_window,
+                max_total_attempts, distance_limit,
             ),
             range(n_generations),
         ))
@@ -295,14 +220,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("parameters_json", help="Path to a preset's *.parameters.json file.")
     parser.add_argument("--output", default=None, help="Path to write the corrected JSON (default: <input>.corrected.json).")
-    parser.add_argument("--sholl-threshold", type=float, default=1, help="Max allowed |experimental - simulated| for each Sholl bin before shifting (default: 0.5).")
-    parser.add_argument("--bifurcation-threshold", type=float, default=1, help="Max allowed |experimental - simulated| for bifurcation count before shifting (default: 0.5).")
+    parser.add_argument("--sholl-threshold", type=float, default=0.5, help="Max allowed |experimental - simulated| for each Sholl bin before shifting (default: 0.5).")
+    parser.add_argument("--bifurcation-threshold", type=float, default=0.5, help="Max allowed |experimental - simulated| for bifurcation count before shifting (default: 0.5).")
     parser.add_argument("--n-generations", type=int, default=200, help="Number of fresh trees synthesized per test (default: 200).")
     parser.add_argument("--max-iterations", type=int, default=20, help="Max shift-and-retest iterations per bin/metric (default: 20).")
     parser.add_argument("--step-size", type=float, default=2, help="Synthesis step size (default: 2).")
     parser.add_argument("--n-std", type=float, default=3.0, help="Sholl/bifurcation-count tolerance passed to synthesize_progressive (default: 3.0).")
-    parser.add_argument("--max-attempts-per-window", type=int, default=100, help="synthesize_progressive's own rollback-window retry limit (default: 10).")
-    parser.add_argument("--max-total-attempts", type=int, default=5000, help="synthesize_progressive's own shared attempt budget (default: 1000).")
+    parser.add_argument("--max-attempts-per-window", type=int, default=10, help="synthesize_progressive's own rollback-window retry limit (default: 10).")
+    parser.add_argument("--max-total-attempts", type=int, default=1000, help="synthesize_progressive's own shared attempt budget (default: 1000).")
     parser.add_argument("--max-workers", type=int, default=None, help="Thread pool size per test (default: os.cpu_count()).")
     args = parser.parse_args()
 

@@ -74,45 +74,12 @@ def sholl_plot(
     labels=None,
     max_distance=None,
 ):
-    """Return Sholl radii and intersection counts."""
-    centers = [
-        root.points[0]
-        for root in roots
-        if len(root.points)
-    ]
-
-    if not centers:
-        return np.zeros(0), np.zeros(0, dtype=int)
-
-    center = np.asarray(centers[0], dtype=float)
-    segments = list(iter_segments(roots, labels))
-
-    if not segments:
-        return np.zeros(0), np.zeros(0, dtype=int)
-
-    if max_distance is None:
-        max_distance = max(
-            np.linalg.norm(point - center)
-            for segment in segments
-            for point in segment
-        )
-
-    radii = np.arange(
-        0.0,
-        max_distance + 0.5 * bin_size,
-        bin_size,
-    )
-    counts = np.zeros(len(radii), dtype=int)
-
-    for point_0, point_1 in segments:
-        distance_0 = np.linalg.norm(point_0 - center)
-        distance_1 = np.linalg.norm(point_1 - center)
-        lower, upper = sorted((distance_0, distance_1))
-
-        counts += (
-            (radii > lower) & (radii <= upper)
-        ).astype(int)
-
+    tmp = [r.sholl_plot(bin_size) for r in roots]
+    max_sz = max(r.size for r in tmp)
+    counts = np.zeros(max_sz)
+    for r in tmp:
+        counts[:r.size] += r
+    radii = np.arange(0, counts.size) * bin_size
     return radii, counts
 
 
