@@ -23,8 +23,8 @@ def generate(seed, cell_type, **kwargs):
     
     verbose = kwargs.get("verbose", False)
     n_std = kwargs.get("n_std", 3)
-    max_attempts_per_window = kwargs.get("max_attempts_per_window", 50)
-    max_total_attempts = kwargs.get("max_total_attempts", 1000)
+    max_attempts_per_window = kwargs.get("max_attempts_per_window", 100)
+    max_total_attempts = kwargs.get("max_total_attempts", 5000)
 
 
     # density of oblique branch points
@@ -71,23 +71,23 @@ def generate(seed, cell_type, **kwargs):
 
     # compose the biases into the elongation bias, one per label
     apical_elongation_bias = [
-      (0.04, apical_spatial_bias),
+      (0.1, apical_spatial_bias),
       (0.001, section_bias),
-      (0.06, plane_bias),
-      (0.015, spatial_bias),
+      (0.125, plane_bias),
+      (0.025, spatial_bias),
       ]
 
     basal_elongation_bias = [
-      (0.01, somatic_bias),
+      (0.1, somatic_bias),
       (0.001, section_bias),
-      (0.015, spatial_bias),
+      (0.025, spatial_bias),
       ]
 
     
     oblique_elongation_bias = [
-      (0.04, root_bias),
+      (0.1, root_bias),
       (0.001, section_bias),
-      (0.015, spatial_bias),
+      (0.025, spatial_bias),
       ]
     
     # bifurcation biases
@@ -129,13 +129,13 @@ def generate(seed, cell_type, **kwargs):
             # point is reached, during the very first (order 0) pass
             'apical_oblique': oblique_elongation_bias,
         },
-        elongation_random_weight=1.0,
-        elongation_bias_weight=3,
+        elongation_random_weight=3.5,
+        elongation_bias_weight=5,
         # obliques have no axis_direction, so they keep the default
         # (no direction correction); only the primary apical and basal
         # trunks get pulled back toward the soma's axis.
         correction_type={
-            'apical_oblique':None, #'root',
+            'apical_oblique':'root',
             'default': 'somatic',
         },
     )

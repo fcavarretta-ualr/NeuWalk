@@ -29,7 +29,7 @@ def main():
     
     bifurcation_internal_density =  extract_statistics(
       load_morphologies(args.directory,
-                        delete_labels=["unknown",  "apical_secondary_oblique", "apical_secondary_dendrite", "basal_dendrite", "soma", "axon"]),
+                        delete_labels=["unknown",  "apical_secondary_oblique", "apical_secondary_dendrite", "basal_dendrite", "soma", "axon"], soma_processing=False),
       bin_size=args.bin_size)['bifurcation_internal_density']
     
     

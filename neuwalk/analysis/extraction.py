@@ -27,7 +27,6 @@ def extract_statistics(morphologies, bin_size):
         for root in roots:
             root_sholl = root.sholl_plot(bin_size)
             bif, ann, internal = root._event_counts(bin_size)
-            #assert sum(bif) == root.bifurcation_count
             sholl.append(root_sholl)
             bifurcations.append(bif)
             annihilations.append(ann)

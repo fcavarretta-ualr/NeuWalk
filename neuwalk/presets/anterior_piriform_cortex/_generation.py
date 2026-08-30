@@ -23,8 +23,8 @@ def generate(seed, cell_type, **kwargs):
     
     verbose = kwargs.get("verbose", False)
     n_std = kwargs.get("n_std", 3)
-    max_attempts_per_window = kwargs.get("max_attempts_per_window", 50)
-    max_total_attempts = kwargs.get("max_total_attempts", 1000)
+    max_attempts_per_window = kwargs.get("max_attempts_per_window", 100)
+    max_total_attempts = kwargs.get("max_total_attempts", 5000)
 
     # generate the profiles for each label
     ret = _common.synthesize_topologies(
@@ -53,15 +53,15 @@ def generate(seed, cell_type, **kwargs):
 
     # compose the biases into the elongation bias, one per label
     apical_elongation_bias = [
-      (0.04, apical_spatial_bias),
+      (0.1, apical_spatial_bias),
       (0.001, section_bias),
-      (0.015, spatial_bias)
+      (0.025, spatial_bias)
       ]
 
     basal_elongation_bias = [
-      (0.04, basal_spatial_bias),
+      (0.1, basal_spatial_bias),
       (0.001, section_bias),
-      (0.015, spatial_bias)
+      (0.025, spatial_bias)
       ]
     
     # bifurcation biases
@@ -81,7 +81,7 @@ def generate(seed, cell_type, **kwargs):
     synthesizer = MorphologySynthesizer(
         topology=merged_topology,
         rng=Random(seed),
-        theta={1:0, "default":np.pi / 6},
+        theta={1:0, "default":np.pi / 3},
         phi={1:0, "default":(0, 2 * np.pi)},
         axis_direction={
             'apical_dendrite': np.array([0.0, 0.0, 1.0]),
@@ -89,8 +89,8 @@ def generate(seed, cell_type, **kwargs):
         },
         bifurcation_bias=bifurcation_bias,
         elongation_bias={'apical_dendrite': apical_elongation_bias, 'basal_dendrite': basal_elongation_bias},
-        elongation_random_weight=0.5,
-        elongation_bias_weight=2.0,
+        elongation_random_weight=0.75,
+        elongation_bias_weight=5,
         correction_type='somatic'
     )
 

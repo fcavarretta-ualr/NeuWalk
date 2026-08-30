@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 from neuwalk.presets._common import synthesize_topologies
 
 
-LABELS = ("basal_dendrite", "apical_dendrite") #, "basal_dendrite", "apical_oblique")
+LABELS = ("apical_oblique",) #, "basal_dendrite", )
 
 
 def load_params(path):
