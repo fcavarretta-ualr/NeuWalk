@@ -42,7 +42,7 @@ def main():
       try:
           print(f"\tExtracting statistics...", end="")
           params = extract_statistics(
-            load_morphologies(args.directory, delete_labels=delete_labels),
+            load_morphologies(args.directory, delete_labels=delete_labels, soma_processing=False),
             bin_size=args.bin_size)
           print("done")
 
