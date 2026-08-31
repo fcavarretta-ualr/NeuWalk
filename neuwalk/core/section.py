@@ -2,10 +2,13 @@ import numpy as np
 from .section_object import SectionObject, TYPE_LABELS, TYPE_CODES
 from .. import misc
 
-def is_float_array(value):
-    return isinstance(value, np.ndarray) and value.shape == (3,) and np.issubdtype(value.dtype, np.floating)
+def is_float_array(value, n_dimension):
+    return isinstance(value, np.ndarray) and value.shape == (n_dimension,) and np.issubdtype(value.dtype, np.floating)
 
-        
+def is_float_array_1d(value): return is_float_array(value, 1)
+def is_float_array_2d(value): return is_float_array(value, 2)    
+def is_float_array_3d(value): return is_float_array(value, 3)
+
 class ValidatedList(list):
     def __init__(self, values=(), validator=None):
         self.validator = validator
@@ -44,20 +47,32 @@ class ValidatedList(list):
 class Section(SectionObject):
     """Represent one section of a rooted tree."""
 
-    def __init__(self, points=None, label=None, parent=None):
+    def __init__(self, points=None, label=None, parent=None, n_dimension=3):
         """
         Parameters
         ----------
         points : array-like, optional
-            Section points with shape ``(n, 3)``.
+            Section points with shape ``(n, n_dimension)``.
         label : object, optional
             Identifier describing the label.
         parent : Section, optional
             Parent section.
+        n_dimension : int, optional
+            N. of dimension for each point (1 <= n_dimension <= 3)
         """
         super().__init__(label=label, parent=parent)
 
-        self._points = ValidatedList(validator=is_float_array)
+
+        assert type(n_dimension) == int, "n_dimension should be integer"
+        assert 1 <= n_dimension <= 3, "n_dimension should range between 1 and 3"
+        
+        self.is_float_array = {
+            1:is_float_array_1d,
+            2:is_float_array_2d,
+            3:is_float_array_3d
+            }[n_dimension]
+
+        self._points = ValidatedList(validator=self.is_float_array)
 
         if points is not None:
             self.points = points
@@ -70,7 +85,7 @@ class Section(SectionObject):
 
     @points.setter
     def points(self, values):
-        self._points = ValidatedList(values, validator=is_float_array)
+        self._points = ValidatedList(values, validator=self.is_float_array)
 
 
     @property
