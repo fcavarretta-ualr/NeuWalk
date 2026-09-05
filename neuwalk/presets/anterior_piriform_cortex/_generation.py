@@ -51,11 +51,14 @@ def generate(seed, cell_type, **kwargs):
     section_bias = biases.get_elongation("sibling_repulsion", 20, -2) + biases.get_elongation("nonrelated_repulsion", 10, -2)
     # somatic repulsion
 
+    w_apic_section_bias = { "pyramidal": 0.001, "semilunar":0.002 }
+    w_apic_spatial_bias = { "pyramidal": 0.025, "semilunar":0.04 }
+
     # compose the biases into the elongation bias, one per label
     apical_elongation_bias = [
       (0.1, apical_spatial_bias),
-      (0.001, section_bias),
-      (0.025, spatial_bias)
+      (w_apic_section_bias, section_bias),
+      (w_apic_spatial_bias, spatial_bias)
       ]
 
     basal_elongation_bias = [
@@ -69,14 +72,22 @@ def generate(seed, cell_type, **kwargs):
 
     # merge apical's and basal's topologies so a single
     # MorphologySynthesizer can grow both labels together
-    merged_topology = merge_trees(
-        ret['apical_dendrite']['topology'].soma,
-        ret['basal_dendrite']['topology'].soma,
-    )
-    
+
+    if cell_type == "pyramidal":
+        merged_topology = merge_trees(
+            ret['apical_dendrite']['topology'].soma,
+            ret['basal_dendrite']['topology'].soma,
+        )
+    else:
+        merged_topology = ret['apical_dendrite']['topology'].soma
+        
     # generate apical first, and then basal dendrites
     merged_topology.set_order(0, labels='apical_dendrite')
     merged_topology.set_order(1, labels='basal_dendrite')
+
+
+    elongation_random_weight = {"pyramidal":{"apical_dendrite":0.75, "basal_dendrite":1.75}, "semilunar":{"apical_dendrite":2.5, "basal_dendrite":2.5}}[cell_type]
+
     
     synthesizer = MorphologySynthesizer(
         topology=merged_topology,
@@ -89,7 +100,7 @@ def generate(seed, cell_type, **kwargs):
         },
         bifurcation_bias=bifurcation_bias,
         elongation_bias={'apical_dendrite': apical_elongation_bias, 'basal_dendrite': basal_elongation_bias},
-        elongation_random_weight=0.75,
+        elongation_random_weight=elongation_random_weight,
         elongation_bias_weight=5,
         correction_type='somatic'
     )

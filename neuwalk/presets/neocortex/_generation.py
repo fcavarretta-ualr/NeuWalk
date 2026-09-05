@@ -49,8 +49,8 @@ def generate(seed, cell_type, **kwargs):
     connect_internal_branches(ret['apical_oblique']['topology'].roots, ret['apical_dendrite']['topology'].soma.children, Random(seed), bifurcation_internal_density, bin_size)
 
     # create self-avoidance bias
-    section_bias = biases.get_elongation("sibling_repulsion", 20, -2) + biases.get_elongation("nonrelated_repulsion", 10, -2)
-    
+    section_bias_apic = biases.get_elongation("sibling_repulsion", 20, -2) + biases.get_elongation("nonrelated_repulsion", 10, -2)
+    section_bias_other = biases.get_elongation("sibling_repulsion", 20, -2) + biases.get_elongation("nonrelated_repulsion", 10, -2)    
     
     # spatial bias is a composition of truncated cones
     apical_spatial_bias = biases.get_elongation("plane_boundary", np.array([0., 0., 0.]), (0., 0.), None, None)
@@ -71,22 +71,22 @@ def generate(seed, cell_type, **kwargs):
 
     # compose the biases into the elongation bias, one per label
     apical_elongation_bias = [
-      (0.1, apical_spatial_bias),
-      (0.001, section_bias),
+      (0.3, apical_spatial_bias),
+      (0.001, section_bias_apic),
       (0.125, plane_bias),
       (0.025, spatial_bias),
       ]
 
     basal_elongation_bias = [
       (0.1, somatic_bias),
-      (0.001, section_bias),
+      (0.001, section_bias_other),
       (0.025, spatial_bias),
       ]
 
     
     oblique_elongation_bias = [
       (0.1, root_bias),
-      (0.001, section_bias),
+      (0.001, section_bias_other),
       (0.025, spatial_bias),
       ]
     

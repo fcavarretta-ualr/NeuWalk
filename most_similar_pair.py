@@ -1,244 +1,230 @@
 """
-Compare every neuron in directory A against every neuron in directory
-B, and report the most similar pair.
+Plot a neuron from an SWC file using neuwalk's own plot_morphology,
+with a fixed color scheme (apical_dendrite=black, basal_dendrite=dark
+red, apical_oblique=dark green), a fixed axis range and tick spacing
+(so different neurons are directly, visually comparable across
+separate plots rather than each auto-scaled to its own extent), and an
+optional semi-transparent plane marking where the
+anterior_piriform_cortex/neocortex pyramidal presets' spatial_bias
+constrains dendritic growth.
 
-For each dendrite type (apical_dendrite, basal_dendrite,
-apical_oblique), each neuron's Sholl plot, total length, and
-bifurcation count are computed the same way extract_statistics does:
-via load_morphologies with that type's own delete_labels (deleting
-every other dendrite type, soma, axon, and secondary variants first),
-with soma_processing=False -- process_soma would otherwise insert a
-spurious point at the start of every orphaned root, which is harmless
-for apical/basal (which attach near the real soma) but substantially
-distorts apical_oblique (which attaches at scattered points along the
-trunk); see extract_neo.py's own bug for the same issue.
+Same range across plots: --axis-size now defaults to a fixed value
+(500.0) instead of being derived per-neuron from the data, and is
+centered on the origin (0, 0, 0) by default rather than each neuron's
+own bounding-box center -- process_morphology's translate_sections
+already puts the soma there, so every plot ends up with the EXACT same
+absolute limits (-500 to 500 on every axis, by default) unless you
+override --axis-size or pass --center-on-data to go back to centering
+on that specific neuron's own data instead.
 
-For a given (neuron in A, neuron in B) pair, per dendrite type present
-in both:
+Right proportions: the same size is always applied to all three axes,
+so the neuron is never stretched, whichever centering/size is in use.
 
-- Sholl plot difference: the two arrays are zero-padded to the same
-  length (neurons reach different max radii), then the MEAN of the
-  absolute per-bin differences is taken.
-- Bifurcation count difference: |count_a - count_b|.
-- Total length difference: |length_a - length_b|.
+Fixed tick spacing: ticks always land --tick-spacing units apart
+(100.0 by default), regardless of the axis range in use, rather than
+whatever spacing matplotlib's automatic locator would otherwise choose
+for a given range.
 
-These are SUMMED across every dendrite type present in both neurons of
-the pair (a type missing from either neuron is skipped for that pair,
-not treated as zero) to get one sholl_score, bifurcation_score, and
-length_score per pair.
-
-Pairs are ranked by (sholl_score, bifurcation_score, length_score),
-ascending -- i.e. primarily by Sholl-plot similarity, using
-bifurcation count as a tiebreaker and total length as a further
-tiebreaker. The most similar pair (lowest such tuple) is reported.
+--align-principal-axes rotates the neuron (via PCA on all its points)
+so its longest spatial extent aligns with z, second longest with x,
+and shortest with y -- a genuine geometric transformation of the
+loaded points, not a change of viewing angle, so it composes normally
+with --axis-size/--center-on-data/--show-bias-plane afterward.
 
 Usage
 -----
-    python most_similar_pair.py DIR_A DIR_B
-    python most_similar_pair.py DIR_A DIR_B --bin-size 20 --top 5
+    python plot_neuron.py cell.swc
+    python plot_neuron.py cell.swc --axis-size 300
+    python plot_neuron.py cell.swc --center-on-data
+    python plot_neuron.py cell.swc --tick-spacing 50
+    python plot_neuron.py cell.swc --align-principal-axes
+    python plot_neuron.py cell.swc --show-bias-plane
+    python plot_neuron.py cell.swc --show-bias-plane --bias-plane-axis y --bias-plane-position 0
+    python plot_neuron.py cell.swc --output cell.png
 """
 
 import argparse
-from itertools import product
-from pathlib import Path
 
 import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator
 
-from neuwalk.analysis.morphologies import load_morphologies
+from neuwalk.io import read_swc
+from neuwalk.visualization.morphology import plot_morphology
 
 
-LABELS = ("apical_dendrite", "basal_dendrite", "apical_oblique")
-
-# Matches extract_apc.py/extract_neo.py's own discarded_sections exactly:
-# for a given dendrite type's own statistics, every section belonging
-# to a DIFFERENT dendritic lineage (plus soma, axon, unknown, and
-# secondary oblique/dendrite variants) is deleted before measuring.
-LABEL_DELETE_SETS = {
-    "basal_dendrite": ["unknown", "apical_oblique", "apical_secondary_oblique", "apical_secondary_dendrite", "soma", "apical_dendrite", "axon"],
-    "apical_dendrite": ["unknown", "apical_oblique", "apical_secondary_oblique", "apical_secondary_dendrite", "soma", "basal_dendrite", "axon"],
-    "apical_oblique": ["unknown", "apical_dendrite", "apical_secondary_oblique", "apical_secondary_dendrite", "soma", "basal_dendrite", "axon"],
+SECTION_COLORS = {
+    "apical_dendrite": "black",
+    "basal_dendrite": "darkred",
+    "apical_oblique": "darkgreen",
 }
 
 
-def total_length(roots):
-    """Sum of section.length across every root's subtree."""
-    return sum(section.length for root in roots for section in root.subtree)
-
-
-def label_bifurcation_count(roots):
+def set_axis_size(ax, size, center):
     """
-    Bifurcation count across every root's subtree: a section with 2
-    children only counts if BOTH children share the section's own
-    label, matching extract_statistics' definition (a section whose
-    children have different labels is an "internal bifurcation" there,
-    excluded from bifurcation_count). After delete_labels, every
-    remaining section already shares one label anyway, so this check
-    is a no-op safety net rather than something that actually excludes
-    anything here.
+    Force all three 3D axes to span [center - size, center + size] --
+    the SAME size on every axis, so proportions stay correct -- rather
+    than the size plot_morphology's own _set_equal_axes would derive
+    from the plotted data.
     """
-    return sum(
-        len(section.children) == 2 and all(child.label == section.label for child in section.children)
-        for root in roots
-        for section in root.subtree
-    )
+    center = np.asarray(center, dtype=float)
+
+    ax.set_xlim(center[0] - size, center[0] + size)
+    ax.set_ylim(center[1] - size, center[1] + size)
+    ax.set_zlim(center[2] - size, center[2] + size)
 
 
-def label_sholl_plot(roots, bin_size):
+def set_fixed_ticks(ax, spacing):
     """
-    Sholl-style crossing counts across every root's subtree: bin i
-    counts how many sections pass through [i*bin_size, (i+1)*bin_size)
-    at least once, using each section's full min-to-max distance range
-    along its own path (not just individual segment direction), and
-    counting a section at most once per bin even if its path revisits
-    that bin.
-
-    Distances are measured from the origin, not a soma point: with
-    soma_processing=False and soma itself deleted, there's no soma
-    point in this tree at all, but process_morphology's
-    translate_sections already recenters every root at its own first
-    point -- exactly the origin -- so every root already starts there.
-
-    Returns
-    -------
-    numpy.ndarray
-        Length is one more than the furthest bin any section reaches;
-        an empty tree returns an all-zero array of length 1.
+    Force ticks on all three 3D axes to land exactly `spacing` units
+    apart (e.g. ...,-100, 0, 100, 200,... for spacing=100), regardless
+    of the current axis limits -- so tick spacing stays the same
+    across different neurons and different --axis-size values, rather
+    than whatever spacing matplotlib's automatic locator happens to
+    pick for a given limit range.
     """
-    source = np.zeros(3)
-
-    spans = []
-    max_bin = 0
-
-    for root in roots:
-        for section in root.subtree:
-            distances = np.linalg.norm(np.asarray(section.points, dtype=float) - source, axis=1)
-            min_bin = int(distances.min() / bin_size)
-            this_max_bin = int(distances.max() / bin_size)
-            spans.append((min_bin, this_max_bin))
-            max_bin = max(max_bin, this_max_bin)
-
-    if not spans:
-        return np.zeros(1, dtype=int)
-
-    counts = np.zeros(max_bin + 1, dtype=int)
-
-    for min_bin, this_max_bin in spans:
-        counts[min_bin:this_max_bin + 1] += 1
-
-    return counts
+    ax.xaxis.set_major_locator(MultipleLocator(spacing))
+    ax.yaxis.set_major_locator(MultipleLocator(spacing))
+    ax.zaxis.set_major_locator(MultipleLocator(spacing))
 
 
-def load_neuron_data(directory, label, bin_size):
+def align_principal_axes(roots):
     """
-    Load every .swc file in directory, processed for the given dendrite
-    type, and return {filename: {"sholl_plot": array, "total_length":
-    float, "bifurcation_count": int}}. A file with no sections of this
-    type at all is omitted entirely -- not a real measurement of it,
-    just its absence.
+    Rotate every point in every section so the neuron's own principal
+    axes of spatial extent (via PCA on all its points) align with the
+    plot's coordinate axes: the longest axis becomes z, the second
+    longest becomes x, and the shortest becomes y. Mutates every
+    section's points in place, through its own points setter (so
+    validation still runs) -- this is a real geometric transformation
+    of the loaded data, not just a change of viewing angle.
+
+    A principal axis' sign is otherwise arbitrary (PCA/SVD singular
+    vectors are only defined up to sign, which can flip unpredictably
+    between neurons or even between runs) -- disambiguated here by
+    flipping any axis whose points skew negative on median, so the
+    bulk of the neuron consistently ends up on the positive side of
+    each axis instead.
     """
-    morphologies = load_morphologies(directory, delete_labels=LABEL_DELETE_SETS[label], return_file_names=True, soma_processing=False)
+    all_sections = [section for root in roots for section in root.subtree if len(section.points) > 0]
 
-    data = {}
+    if not all_sections:
+        return
 
-    for filename, roots in morphologies:
-        length = total_length(roots)
+    all_points = np.vstack([np.asarray(section.points, dtype=float) for section in all_sections])
 
-        if length == 0:
-            continue
+    center = all_points.mean(axis=0)
+    centered = all_points - center
 
-        data[filename] = {
-            "sholl_plot": label_sholl_plot(roots, bin_size),
-            "total_length": length,
-            "bifurcation_count": label_bifurcation_count(roots),
-        }
+    # SVD on the centered point cloud: right singular vectors are the
+    # principal axes, already ordered by decreasing variance (i.e.
+    # decreasing extent along that direction).
+    _, _, principal_axes = np.linalg.svd(centered, full_matrices=False)
 
-    return data
+    projections = centered @ principal_axes.T
+    signs = np.sign(np.median(projections, axis=0))
+    signs[signs == 0] = 1.0
+    principal_axes = principal_axes * signs[:, np.newaxis]
+
+    # principal_axes[0] is the longest axis, [1] the second, [2] the
+    # shortest. Row i of `rotation` becomes the new axis i (x, y, z),
+    # so rotation @ point = [longest . x_dir, ...] -- put the longest
+    # axis in the row that produces the new z coordinate (row 2), the
+    # second longest in the row for x (row 0), and the shortest in the
+    # row for y (row 1).
+    rotation = np.array([principal_axes[1], principal_axes[2], principal_axes[0]])
+
+    for section in all_sections:
+        points = np.asarray(section.points, dtype=float)
+        section.points = (points - center) @ rotation.T
 
 
-def sholl_difference(sholl_a, sholl_b):
-    """Mean absolute per-bin difference between two Sholl arrays, zero-padded to the same length."""
-    n = max(len(sholl_a), len(sholl_b))
-    padded_a = np.pad(np.asarray(sholl_a, dtype=float), (0, n - len(sholl_a)))
-    padded_b = np.pad(np.asarray(sholl_b, dtype=float), (0, n - len(sholl_b)))
-    return float(np.mean(np.abs(padded_a - padded_b)))
-
-
-def compare_all_pairs(dir_a, dir_b, bin_size):
+def add_bias_plane(ax, axis, position, color="orange", alpha=0.25):
     """
-    Compare every neuron in dir_a against every neuron in dir_b.
+    Draw a semi-transparent plane orthogonal to the given axis
+    ('x', 'y', or 'z'), at the given position along it, spanning the
+    axis' current x/y/z limits.
 
-    Returns a list of dicts (one per comparable pair), sorted ascending
-    by (sholl_score, bifurcation_score, length_score) -- the first
-    entry is the most similar pair.
+    This represents the plane the anterior_piriform_cortex/neocortex
+    pyramidal presets' spatial_bias constrains growth around: in
+    _generation.py, spatial_bias is a pair of plane_boundary biases
+    centered at y=+thickness and y=-thickness (thickness=25.0),
+    together forming a slab that pushes dendrites back toward y=0 if
+    they wander past either boundary -- so the default here
+    (axis='y', position=0.0) marks the slab's own center plane, not
+    either individual boundary.
     """
-    data_a = {label: load_neuron_data(dir_a, label, bin_size) for label in LABELS}
-    data_b = {label: load_neuron_data(dir_b, label, bin_size) for label in LABELS}
+    xlim, ylim, zlim = ax.get_xlim(), ax.get_ylim(), ax.get_zlim()
 
-    files_a = sorted(set().union(*(d.keys() for d in data_a.values())), key=str)
-    files_b = sorted(set().union(*(d.keys() for d in data_b.values())), key=str)
+    if axis == "x":
+        y = np.linspace(*ylim, 2)
+        z = np.linspace(*zlim, 2)
+        Y, Z = np.meshgrid(y, z)
+        X = np.full_like(Y, position)
+    elif axis == "y":
+        x = np.linspace(*xlim, 2)
+        z = np.linspace(*zlim, 2)
+        X, Z = np.meshgrid(x, z)
+        Y = np.full_like(X, position)
+    elif axis == "z":
+        x = np.linspace(*xlim, 2)
+        y = np.linspace(*ylim, 2)
+        X, Y = np.meshgrid(x, y)
+        Z = np.full_like(X, position)
+    else:
+        raise ValueError("axis must be 'x', 'y', or 'z'.")
 
-    results = []
+    ax.plot_surface(X, Y, Z, color=color, alpha=alpha, linewidth=0, shade=False)
 
-    for file_a, file_b in product(files_a, files_b):
-        sholl_score = 0.0
-        bifurcation_score = 0.0
-        length_score = 0.0
-        labels_compared = []
-
-        for label in LABELS:
-            entry_a = data_a[label].get(file_a)
-            entry_b = data_b[label].get(file_b)
-
-            if entry_a is None or entry_b is None:
-                continue
-
-            sholl_score += sholl_difference(entry_a["sholl_plot"], entry_b["sholl_plot"])
-            bifurcation_score += abs(entry_a["bifurcation_count"] - entry_b["bifurcation_count"])
-            length_score += abs(entry_a["total_length"] - entry_b["total_length"])
-            labels_compared.append(label)
-
-        if not labels_compared:
-            continue
-
-        results.append({
-            "file_a": file_a,
-            "file_b": file_b,
-            "sholl_score": sholl_score,
-            "bifurcation_score": bifurcation_score,
-            "length_score": length_score,
-            "labels_compared": labels_compared,
-        })
-
-    results.sort(key=lambda r: (r["sholl_score"], r["bifurcation_score"], r["length_score"]))
-
-    return results
+    # restore the limits plot_surface can otherwise expand
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+    ax.set_zlim(zlim)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("dir_a", help="First directory of .swc files.")
-    parser.add_argument("dir_b", help="Second directory of .swc files.")
-    parser.add_argument("--bin-size", type=float, default=50.0, help="Sholl bin size (default: 50.0).")
-    parser.add_argument("--top", type=int, default=1, help="Show the top N most similar pairs (default: 1).")
+    parser.add_argument("swc_file", help="Path to an .swc file.")
+    parser.add_argument("--axis-size", type=float, default=500.0, help="Half-width of each axis, the same on every plot by default (default: 500.0).")
+    parser.add_argument("--align-principal-axes", action="store_true", help="Rotate the neuron so its longest spatial extent aligns with z, second longest with x, and shortest with y, via PCA on its own points.")
+    parser.add_argument("--center-on-data", action="store_true", help="Center the axis range on this neuron's own bounding-box center instead of the origin -- breaks direct comparability with other plots, but maximizes use of the range for this one.")
+    parser.add_argument("--tick-spacing", type=float, default=100.0, help="Distance between axis ticks, the same on all three axes (default: 100.0).")
+    parser.add_argument("--linewidth", type=float, default=1.5)
+    parser.add_argument("--show-bias-plane", action="store_true", help="Overlay a semi-transparent orange plane marking the aPC/neocortex pyramidal presets' spatial_bias plane.")
+    parser.add_argument("--bias-plane-axis", choices=("x", "y", "z"), default="y", help="Axis the bias plane is orthogonal to (default: y, matching _generation.py's plane_boundary bias).")
+    parser.add_argument("--bias-plane-position", type=float, default=0.0, help="Position of the bias plane along --bias-plane-axis (default: 0.0, the slab's own center plane).")
+    parser.add_argument("--output", default=None, help="Save the figure to this path instead of showing it interactively.")
     args = parser.parse_args()
 
-    results = compare_all_pairs(Path(args.dir_a), Path(args.dir_b), args.bin_size)
+    roots = read_swc(args.swc_file)
 
-    if not results:
-        print("No comparable pairs found (no shared dendrite type between any neuron in A and any in B).")
-        return
+    if args.align_principal_axes:
+        align_principal_axes(roots)
 
-    print(f"Compared {len(results)} pair(s) across A x B.")
-    print()
+    ax = plot_morphology(roots, section_colors=SECTION_COLORS, linewidth=args.linewidth, show=False)
 
-    for rank, r in enumerate(results[:args.top], start=1):
-        print(f"#{rank}: A={r['file_a'].name}  B={r['file_b'].name}")
-        print(f"    sholl_score={r['sholl_score']:.4f}  bifurcation_score={r['bifurcation_score']:.4f}  length_score={r['length_score']:.4f}")
-        print(f"    dendrite types compared: {', '.join(r['labels_compared'])}")
-        print()
+    if args.center_on_data:
+        all_points = np.vstack([
+            np.asarray(section.points, dtype=float)
+            for root in roots
+            for section in root.subtree
+            if len(section.points) > 0
+        ])
+        center = 0.5 * (all_points.min(axis=0) + all_points.max(axis=0))
+    else:
+        center = np.zeros(3)
 
-    best = results[0]
-    print(f"Most similar pair: {best['file_a']}  <->  {best['file_b']}")
+    set_axis_size(ax, args.axis_size, center)
+
+    if args.show_bias_plane:
+        add_bias_plane(ax, args.bias_plane_axis, args.bias_plane_position)
+
+    set_fixed_ticks(ax, args.tick_spacing)
+
+    if args.output:
+        plt.savefig(args.output, dpi=150)
+        print(f"saved to {args.output}")
+    else:
+        plt.show()
 
 
 if __name__ == "__main__":
