@@ -23,12 +23,16 @@ type is skipped (with a warning printed) rather than crashing the
 whole script -- the remaining dendrite types are still loaded and
 plotted normally.
 
+The figure defaults to 7.27in wide -- A4 portrait width (8.27in) minus
+a 0.5in margin on each side -- so it fits an A4 page at full scale
+without cropping or shrinking; override with --fig-width if you need
+a different page size or margin.
+
 Usage
 -----
     python plot_sholl_comparison.py EXPERIMENTAL_DIR SYNTHETIC_DIR
     python plot_sholl_comparison.py EXPERIMENTAL_DIR SYNTHETIC_DIR --bin-size 20
     python plot_sholl_comparison.py EXPERIMENTAL_DIR SYNTHETIC_DIR --dendrite-types apical_dendrite basal_dendrite
-    python plot_sholl_comparison.py EXPERIMENTAL_DIR SYNTHETIC_DIR --fig-width 8.27 --output sholl.png
     python plot_sholl_comparison.py EXPERIMENTAL_DIR SYNTHETIC_DIR --output sholl.png
 """
 
@@ -158,7 +162,7 @@ def plot_panel(ax, subsection, experimental_plots, synthetic_plots, bin_size, ma
                     capsize=3, label=f"synthetic (n={len(synthetic_plots)})")
 
     ax.set_title(subsection)
-    ax.set_xlabel("distance from soma")
+    ax.set_xlabel("distance from soma (\u00b5m)")
     ax.set_ylabel("crossings")
     ax.legend()
 
@@ -172,7 +176,7 @@ def main():
     parser.add_argument("--marker-type", default="o", help="Marker shape at each data point, using matplotlib marker codes -- e.g. 'o' circle, 's' square, '^' triangle, 'D' diamond (default: 'o').")
     parser.add_argument("--dendrite-types", nargs="+", choices=SUBSECTIONS, default=list(SUBSECTIONS),
                          help=f"Which dendrite type(s) to plot, one or more of {SUBSECTIONS} (default: all present).")
-    parser.add_argument("--fig-width", type=float, default=None, help="Total figure width in inches (default: 6 * number of panels shown). A4 portrait width is 8.27.")
+    parser.add_argument("--fig-width", type=float, default=7.27, help="Total figure width in inches (default: 7.27, i.e. A4 portrait width 8.27in minus 0.5in margins on each side).")
     parser.add_argument("--fig-height", type=float, default=5.0, help="Figure height in inches (default: 5.0). A4 portrait height is 11.69.")
     parser.add_argument("--output", default=None, help="Save the figure to this path instead of showing it interactively.")
     args = parser.parse_args()
@@ -196,8 +200,7 @@ def main():
         print(f"No data found for any of {args.dendrite_types} in either directory.")
         return
 
-    fig_width = args.fig_width if args.fig_width is not None else 6 * len(panels)
-    fig, axes = plt.subplots(1, len(panels), figsize=(fig_width, args.fig_height), squeeze=False)
+    fig, axes = plt.subplots(1, len(panels), figsize=(args.fig_width, args.fig_height), squeeze=False)
     axes = axes[0]
 
     for ax, (subsection, experimental_plots, synthetic_plots) in zip(axes, panels):
@@ -211,7 +214,7 @@ def main():
     fig.tight_layout()
 
     if args.output:
-        fig.savefig(args.output, dpi=150)
+        fig.savefig(args.output, dpi=300)
         print(f"saved to {args.output}")
     else:
         plt.show()

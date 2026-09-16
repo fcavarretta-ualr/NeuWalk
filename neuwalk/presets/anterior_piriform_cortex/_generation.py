@@ -38,32 +38,41 @@ def generate(seed, cell_type, **kwargs):
     )
     
     # spatial bias is a composition of truncated cones
-    apical_spatial_bias = biases.get_elongation("plane_boundary", np.array([0., 0., 0.]), (0., 0.), None, None)
+    half_somatic_distance = {'semilunar':200, 'pyramidal':400}[cell_type]
+    apical_spatial_bias = biases.get_elongation("plane_boundary", np.array([0., 0., 0.]), (0., 0.), half_somatic_distance, -2)
 
-    thickness = 25.0
+    thickness = {'semilunar':25, 'pyramidal':50.0 } [cell_type]
     
-    spatial_bias = biases.get_elongation("plane_boundary", np.array([0., thickness, 0.]), (np.pi / 2, np.pi / 2 * 3), thickness / 2, -1.0, resistance=True)  + \
-                   biases.get_elongation("plane_boundary", np.array([0., -thickness, 0.]), (np.pi / 2, np.pi / 2), thickness / 2, -1.0, resistance=True)
+    spatial_bias = biases.get_elongation("plane_boundary", np.array([0., thickness, 0.]), (np.pi / 2, np.pi / 2 * 3), thickness / 2, -2.0, resistance=True)  + \
+                   biases.get_elongation("plane_boundary", np.array([0., -thickness, 0.]), (np.pi / 2, np.pi / 2), thickness / 2, -2.0, resistance=True)
     
-    basal_spatial_bias = biases.get_elongation("plane_boundary", np.array([0., 0., 0.]), (np.pi, 0.), None, None)
+    basal_spatial_bias = biases.get_elongation("plane_boundary", np.array([0., 0., 0.]), (np.pi, 0.), 200, -2)
 
     # create self-avoidance bias
-    section_bias = biases.get_elongation("sibling_repulsion", 20, -2) + biases.get_elongation("nonrelated_repulsion", 10, -2)
+
+    
+    #section_bias = biases.get_elongation("sibling_repulsion", 20, -2) + biases.get_elongation("nonrelated_repulsion", 10, -2)
+
+    sibling_half_dist = 20 #{ "pyramidal":25, "semilunar":20 }[cell_type]
+    non_sibiling_half_dist = 10 #{ "pyramidal":15, "semilunar":10 }[cell_type]
+    
+    section_bias = biases.get_elongation("sibling_repulsion", sibling_half_dist, -2) + biases.get_elongation("nonrelated_repulsion", non_sibiling_half_dist, -2)
+    
     # somatic repulsion
 
-    w_apic_section_bias = { "pyramidal": 0.001, "semilunar":0.002 }
-    w_apic_spatial_bias = { "pyramidal": 0.025, "semilunar":0.04 }
+    w_apic_section_bias = { "pyramidal": 0.001, "semilunar":0.002 }[cell_type]
+    w_apic_spatial_bias = { "pyramidal": 0.02, "semilunar":0.04 }[cell_type]
 
     # compose the biases into the elongation bias, one per label
     apical_elongation_bias = [
-      (0.1, apical_spatial_bias),
+      (0.07, apical_spatial_bias),
       (w_apic_section_bias, section_bias),
       (w_apic_spatial_bias, spatial_bias)
       ]
 
     basal_elongation_bias = [
-      (0.1, basal_spatial_bias),
-      (0.001, section_bias),
+      (0.07, basal_spatial_bias),
+      (0.00075, section_bias),
       (0.025, spatial_bias)
       ]
     
@@ -86,7 +95,10 @@ def generate(seed, cell_type, **kwargs):
     merged_topology.set_order(1, labels='basal_dendrite')
 
 
-    elongation_random_weight = {"pyramidal":{"apical_dendrite":0.75, "basal_dendrite":1.75}, "semilunar":{"apical_dendrite":2.5, "basal_dendrite":2.5}}[cell_type]
+    elongation_random_weight = {
+        "pyramidal":{"apical_dendrite":0.75, "basal_dendrite":2.5},
+        "semilunar":{"apical_dendrite":2.5, "basal_dendrite":2.5}
+        }[cell_type]
 
     
     synthesizer = MorphologySynthesizer(
@@ -101,7 +113,7 @@ def generate(seed, cell_type, **kwargs):
         bifurcation_bias=bifurcation_bias,
         elongation_bias={'apical_dendrite': apical_elongation_bias, 'basal_dendrite': basal_elongation_bias},
         elongation_random_weight=elongation_random_weight,
-        elongation_bias_weight=5,
+        elongation_bias_weight=7.5,
         correction_type='somatic'
     )
 

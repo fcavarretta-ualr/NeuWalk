@@ -1,0 +1,13 @@
+#!/bin/bash
+
+python3 generate_apc_pyramidal.py --seed 0 --output control.swc
+python3 generate_apc_pyramidal.py --seed 0 --disable-randomness --output no_randomness.swc
+python3 generate_apc_pyramidal.py --seed 0 --disable-directional-bias --disable-layer-bias --disable-bifurcation-bias --output no_bias.swc
+python3 generate_apc_pyramidal.py --seed 0 --disable-self-avoidance --output no_self_avoidance.swc
+python3 generate_apc_pyramidal.py --seed 0 --disable-correction --output no_somatofugality.swc
+
+python3 plot_neuron.py control.swc --all-black --hide-axes --output control.png
+python3 plot_neuron.py no_randomness.swc --all-black --hide-axes --output no_randomness.png
+python3 plot_neuron.py no_bias.swc --all-black --hide-axes --output no_bias.png
+python3 plot_neuron.py no_self_avoidance.swc --all-black --hide-axes --output no_self_avoidance.png
+python3 plot_neuron.py no_somatofugality.swc --all-black --hide-axes --output no_somatofugality.png

@@ -73,7 +73,7 @@ def generate(func, filename_fmt, n=200, max_workers=None):
 
 if __name__ == "__main__":
     generate(generate_apc_semilunar, "synthetic/aPC/SL/cell%d.swc", max_workers=28)
-##    generate(generate_apc_pyramidal, "synthetic/aPC/PYR/cell%d.swc", max_workers=28)
-    generate(generate_neocortical_pyradamidal, "synthetic/Neocortex/PYR/cell%d.swc", max_workers=28)
-##    generate(generate_mitral, "synthetic/OB/MITRAL/cell%d.swc", max_workers=28)
-##    generate(generate_tufted, "synthetic/OB/TUFTED/cell%d.swc", n=200, max_workers=28)
+    generate(generate_apc_pyramidal, "synthetic/aPC/PYR/cell%d.swc", max_workers=28)
+    generate(generate_neocortical_pyradamidal, "synthetic/Neocortex/PYR/cell%d.swc", max_workers=14)
+    generate(generate_tufted, "synthetic/OB/TUFTED/cell%d.swc", n=200, max_workers=28)
+    generate(generate_mitral, "synthetic/OB/MITRAL/cell%d.swc", max_workers=28)

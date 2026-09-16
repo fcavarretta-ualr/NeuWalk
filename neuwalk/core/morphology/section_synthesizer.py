@@ -330,10 +330,10 @@ class SectionSynthesizer(Section):
 
             # correct the direction if it points away from the reference
             # direction for this section's correction_type
-            correction_direction = self._correction_direction()
+            #correction_direction = self._correction_direction()
 
-            if correction_direction is not None and np.dot(direction, correction_direction) < 0.0:
-                direction = correction_direction
+            #if correction_direction is not None and np.dot(direction, correction_direction) < 0.0:
+            #    direction = correction_direction
                 
 
         point = self._generate_point(direction)

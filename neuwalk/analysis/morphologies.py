@@ -120,10 +120,13 @@ def delete_sections(roots, forbidden_labels):
 
 
 def translate_sections(roots):
+        
     for root in roots:
         source = root.points[0].copy()
         for section in root.subtree:
             section.points = [p-source for p in section.points]
+        
+    
 
     
 
@@ -201,7 +204,14 @@ def _normalize_labels(labels):
         
     return labels
 
-    
+
+
+def load_morphology(filename, delete_labels="unknown", soma_processing=True):       
+    # preprocess morphology
+    m = read_swc(filename)
+    process_morphology(m, delete_labels=delete_labels, soma_processing=soma_processing)
+    return m
+        
 def load_morphologies(directory, delete_labels="unknown", return_file_names=False, soma_processing=True):
     """Load and process morphologies from all SWC files in a directory."""
     
@@ -214,12 +224,8 @@ def load_morphologies(directory, delete_labels="unknown", return_file_names=Fals
     morphologies = []
 
     for filename in files:
-        
-        # neuron is represented as a list of roots
-        m = read_swc(filename)
-        
-        # preprocess morphology
-        process_morphology(m, delete_labels=delete_labels, soma_processing=soma_processing)
+        # load one morphology
+        m = load_morphology(filename, delete_labels=delete_labels, soma_processing=soma_processing)
         
         # append morphology
         if m:

@@ -1,12 +1,22 @@
 """
-Plot a neuron from an SWC file using neuwalk's own plot_morphology,
-with a fixed color scheme (apical_dendrite=black, basal_dendrite=dark
-red, apical_oblique=dark green), a fixed axis range and tick spacing
-(so different neurons are directly, visually comparable across
-separate plots rather than each auto-scaled to its own extent), and an
-optional semi-transparent plane marking where the
-anterior_piriform_cortex/neocortex pyramidal presets' spatial_bias
-constrains dendritic growth.
+Plot a neuron from an SWC file, loaded and preprocessed via
+neuwalk.analysis.morphologies.load_morphology (merging, pruning,
+translating to the origin, delete_labels, and soma_processing all
+handled there, not reimplemented here), with a fixed color scheme
+(apical_dendrite=black, basal_dendrite=dark red, apical_oblique=dark
+green), a fixed axis range and tick spacing (so different neurons are
+directly, visually comparable across separate plots rather than each
+auto-scaled to its own extent), and an optional semi-transparent plane
+marking where the anterior_piriform_cortex/neocortex pyramidal
+presets' spatial_bias constrains dendritic growth.
+
+--delete-labels/--disable-soma-processing map directly onto
+load_morphology's own delete_labels/soma_processing parameters.
+--labels is different: it keeps only the given label(s) (the opposite
+sense from --delete-labels, which says what to remove), applied via
+delete_sections AFTER load_morphology's own preprocessing -- a
+separate, keep-only-style filter layered on top, not a replacement for
+--delete-labels.
 
 Same range across plots: --axis-size now defaults to a fixed value
 (500.0) instead of being derived per-neuron from the data, and is
@@ -28,6 +38,15 @@ instead of a fixed size, which otherwise leaves a smaller neuron
 looking small even when --center-on-data is also given (that option
 only changes where the frame is centered, not how large it is).
 
+--xlim/--ylim/--zlim set an explicit range for one axis at a time,
+overriding whatever --axis-size/--zoom-to-fit/--center-on-data set for
+just that axis -- the other axes are unaffected, so this breaks the
+"same size on every axis" proportion guarantee only for the axis (or
+axes) you explicitly override. In --plot-2d mode, --zlim (or whichever
+axis was dropped from the view) is mapped to the screen axis actually
+showing it -- e.g. --plot-2d xz maps --zlim to the plot's vertical
+axis, since there's no separate z axis in a 2D plot.
+
 Fixed tick spacing: ticks always land --tick-spacing units apart
 (100.0 by default), regardless of the axis range in use, rather than
 whatever spacing matplotlib's automatic locator would otherwise choose
@@ -37,7 +56,13 @@ for a given range.
 so its longest spatial extent aligns with z, second longest with x,
 and shortest with y -- a genuine geometric transformation of the
 loaded points, not a change of viewing angle, so it composes normally
-with --axis-size/--center-on-data/--show-bias-plane afterward.
+with --axis-size/--center-on-data/--show-bias-plane afterward. Its own
+sign choice is arbitrary with respect to the whole point cloud, so
+right after alignment, if apical_dendrite's mean z position doesn't
+end up above basal_dendrite's, the z-axis is flipped to put apical on
+top -- the conventional pyramidal orientation -- rather than leaving
+it to whichever way the PCA sign happened to land (does nothing if
+either label is absent).
 
 --rotate-axis/--rotate-degrees rotates the neuron by an explicit angle
 around x, y, or z, through the origin (soma) -- also a genuine
@@ -57,11 +82,20 @@ a plane in this mode, and only works when --bias-plane-axis is one of
 the two axes being plotted (a plane perpendicular to the dropped axis
 would trivially fill the whole view, so that combination raises).
 
+--labels keeps only the given label(s) (e.g. --labels apical_dendrite),
+deleting every other one present in the file (via delete_sections, the
+same helper load_morphologies uses) before anything else runs --
+--align-principal-axes, --rotate-axis, centering, and sizing then all
+only consider the selected dendrite type(s).
+
 Usage
 -----
     python plot_neuron.py cell.swc
+    python plot_neuron.py cell.swc --labels apical_dendrite
+    python plot_neuron.py cell.swc --labels apical_dendrite apical_oblique
     python plot_neuron.py cell.swc --axis-size 300
     python plot_neuron.py cell.swc --center-on-data --zoom-to-fit
+    python plot_neuron.py cell.swc --xlim -200 200 --ylim -100 300 --zlim -50 900
     python plot_neuron.py cell.swc --center-on-data
     python plot_neuron.py cell.swc --tick-spacing 50
     python plot_neuron.py cell.swc --align-principal-axes
@@ -76,14 +110,15 @@ Usage
 """
 
 import argparse
+from pathlib import Path
 
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
 
-from neuwalk.io import read_swc
 from neuwalk.core.section import Section
 from neuwalk.visualization.morphology import plot_morphology
+from neuwalk.analysis.morphologies import load_morphology, delete_sections, translate_sections
 
 
 AXIS_INDEX = {"x": 0, "y": 1, "z": 2}
@@ -91,7 +126,7 @@ AXIS_INDEX = {"x": 0, "y": 1, "z": 2}
 SECTION_COLORS = {
     "apical_dendrite": "black",
     "basal_dendrite": "darkred",
-    "apical_oblique": "darkgreen",
+    "apical_oblique": "green",
 }
 
 
@@ -148,6 +183,13 @@ def align_principal_axes(roots):
     flipping any axis whose points skew negative on median, so the
     bulk of the neuron consistently ends up on the positive side of
     each axis instead.
+
+    The rotation itself is computed around the mean of all points
+    (needed for PCA to be meaningful), which leaves the soma off the
+    origin in general -- translate_sections is called at the end to
+    recenter every root back onto its own first point (the soma, when
+    soma is present as the root), rather than reimplementing that
+    recentering here.
     """
     all_sections = [section for root in roots for section in root.subtree if len(section.points) > 0]
 
@@ -180,6 +222,47 @@ def align_principal_axes(roots):
     for section in all_sections:
         points = np.asarray(section.points, dtype=float)
         section.points = (points - center) @ rotation.T
+
+    translate_sections(roots)
+
+
+def flip_apical_above_basal(roots):
+    """
+    If, after align_principal_axes, apical_dendrite's mean z position
+    ends up at or below basal_dendrite's, flip the z-axis (negate
+    every point's z coordinate in every section) so apical ends up
+    above basal instead -- correcting align_principal_axes' own sign
+    choice (arbitrary with respect to the whole point cloud) for the
+    conventional pyramidal-neuron orientation specifically, rather
+    than leaving it to chance whether apical or basal ends up on top.
+
+    Does nothing if either label is absent (no reference point to
+    check the convention against).
+    """
+    apical_z = [
+        point[2]
+        for root in roots for section in root.subtree
+        if section.label == "apical_dendrite"
+        for point in np.asarray(section.points, dtype=float)
+    ]
+    basal_z = [
+        point[2]
+        for root in roots for section in root.subtree
+        if section.label == "basal_dendrite"
+        for point in np.asarray(section.points, dtype=float)
+    ]
+
+    if not apical_z or not basal_z:
+        return
+
+    if np.mean(apical_z) <= np.mean(basal_z):
+        for root in roots:
+            for section in root.subtree:
+                if len(section.points) == 0:
+                    continue
+                points = np.asarray(section.points, dtype=float)
+                points[:, 2] *= -1
+                section.points = points
 
 
 def rotate_around_axis(roots, axis, degrees):
@@ -314,21 +397,77 @@ def add_bias_line_2d(ax, axis, position, horizontal_axis, vertical_axis, color="
         ax.axhline(position, color=color, alpha=alpha, linewidth=2)
 
 
+def keep_only_labels(roots, labels):
+    """
+    Keep only sections whose label is in `labels`, deleting every
+    other section present in the tree (via delete_sections, the same
+    helper load_morphologies uses) -- so --align-principal-axes,
+    --rotate-axis, centering, and sizing all then only consider the
+    selected dendrite type(s), not the whole neuron.
+    """
+    present_labels = {section.label for root in roots for section in root.subtree}
+    forbidden_labels = present_labels - set(labels)
+    delete_sections(roots, forbidden_labels)
+
+
+def apply_axis_limits(ax, plot_2d, horizontal_axis, vertical_axis, xlim, ylim, zlim):
+    """
+    Apply explicit --xlim/--ylim/--zlim overrides (each a (min, max)
+    pair, or None to leave that axis alone) on top of whatever
+    set_axis_size already set -- call this after set_axis_size so
+    these win.
+
+    In 2D mode (plot_2d is not None), each neuron-space axis limit is
+    mapped to whichever SCREEN axis (matplotlib's own x/y) is actually
+    displaying it, based on horizontal_axis/vertical_axis -- e.g. with
+    --plot-2d xz, --zlim applies to the plot's vertical (screen y)
+    axis, since there's no separate z axis in a 2D plot. A neuron-space
+    axis not being shown at all in the current 2D view (the one
+    --plot-2d dropped) is simply ignored if given.
+    """
+    per_axis = {"x": xlim, "y": ylim, "z": zlim}
+
+    if plot_2d is None:
+        if xlim is not None:
+            ax.set_xlim(*xlim)
+        if ylim is not None:
+            ax.set_ylim(*ylim)
+        if zlim is not None:
+            ax.set_zlim(*zlim)
+        return
+
+    horizontal_override = per_axis[horizontal_axis]
+    vertical_override = per_axis[vertical_axis]
+
+    if horizontal_override is not None:
+        ax.set_xlim(*horizontal_override)
+
+    if vertical_override is not None:
+        ax.set_ylim(*vertical_override)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("swc_file", help="Path to an .swc file.")
+    parser.add_argument("--delete-labels", nargs="+", default=["unknown"], help="Labels to delete during preprocessing, passed straight through to load_morphology's own delete_labels (default: unknown).")
+    parser.add_argument("--disable-soma-processing", action="store_true", help="Passes soma_processing=False to load_morphology instead of its own default (True).")
+    parser.add_argument("--labels", nargs="+", default=None, help="Only show sections with these labels (e.g. --labels apical_dendrite apical_oblique), deleting every other label present. Default: show every label present. Applied after load_morphology's own --delete-labels preprocessing.")
     parser.add_argument("--axis-size", type=float, default=500.0, help="Half-width of each axis, the same on every plot by default (default: 500.0).")
     parser.add_argument("--zoom-to-fit", action="store_true", help="Override --axis-size with the tightest size that still fits the whole neuron (plus a 10%% margin), maximizing use of the frame instead of a fixed size.")
+    parser.add_argument("--xlim", type=float, nargs=2, default=None, metavar=("MIN", "MAX"), help="Explicit range for the x axis, overriding --axis-size/--zoom-to-fit/--center-on-data for this axis only.")
+    parser.add_argument("--ylim", type=float, nargs=2, default=None, metavar=("MIN", "MAX"), help="Explicit range for the y axis, overriding --axis-size/--zoom-to-fit/--center-on-data for this axis only.")
+    parser.add_argument("--zlim", type=float, nargs=2, default=None, metavar=("MIN", "MAX"), help="Explicit range for the z axis (3D mode) or the neuron-space axis --zlim refers to (2D mode, mapped to whichever screen axis is showing it), overriding --axis-size/--zoom-to-fit/--center-on-data for this axis only.")
     parser.add_argument("--align-principal-axes", action="store_true", help="Rotate the neuron so its longest spatial extent aligns with z, second longest with x, and shortest with y, via PCA on its own points.")
     parser.add_argument("--rotate-axis", choices=("x", "y", "z"), default=None, help="Axis to rotate the neuron around, through the origin (soma). Requires --rotate-degrees.")
     parser.add_argument("--rotate-degrees", type=float, default=None, help="Angle in degrees to rotate by, right-hand rule (requires --rotate-axis).")
     parser.add_argument("--center-on-data", action="store_true", help="Center the axis range on this neuron's own bounding-box center instead of the origin -- breaks direct comparability with other plots, but maximizes use of the range for this one.")
     parser.add_argument("--tick-spacing", type=float, default=100.0, help="Distance between axis ticks, the same on all three axes (default: 100.0).")
-    parser.add_argument("--linewidth", type=float, default=1.5)
+    parser.add_argument("--linewidth", type=float, default=3)
     parser.add_argument("--show-bias-plane", action="store_true", help="Overlay a semi-transparent orange plane marking the aPC/neocortex pyramidal presets' spatial_bias plane.")
     parser.add_argument("--bias-plane-axis", choices=("x", "y", "z"), default="y", help="Axis the bias plane is orthogonal to (default: y, matching _generation.py's plane_boundary bias).")
     parser.add_argument("--bias-plane-position", type=float, default=0.0, help="Position of the bias plane along --bias-plane-axis (default: 0.0, the slab's own center plane).")
     parser.add_argument("--hide-axes", action="store_true", help="Hide all axis lines, ticks, labels, and panes/grid, showing only the neuron itself.")
+    parser.add_argument("--all-black", action="store_true", help="Color every dendrite type black instead of the default per-label scheme.")
     parser.add_argument("--plot-2d", choices=("xy", "xz", "yz", "yx", "zx", "zy"), default=None, help="Plot a 2D projection onto the two given axes instead of the default 3D view -- the first letter is horizontal, the second is vertical.")
     parser.add_argument("--output", default=None, help="Save the figure to this path instead of showing it interactively.")
     args = parser.parse_args()
@@ -336,10 +475,23 @@ def main():
     if (args.rotate_axis is None) != (args.rotate_degrees is None):
         parser.error("--rotate-axis and --rotate-degrees must be given together.")
 
-    roots = read_swc(args.swc_file)
+    roots = load_morphology(args.swc_file, delete_labels=args.delete_labels, soma_processing=not args.disable_soma_processing)
+
+    if not roots:
+        parser.error(
+            f"No sections left in {args.swc_file} after preprocessing with "
+            f"delete_labels={args.delete_labels} -- nothing to plot."
+        )
+
+    if args.labels is not None:
+        keep_only_labels(roots, args.labels)
+
+        if not roots:
+            parser.error(f"No sections with label(s) {args.labels} found in {args.swc_file} -- nothing to plot.")
 
     if args.align_principal_axes:
         align_principal_axes(roots)
+        flip_apical_above_basal(roots)
 
     if args.rotate_axis is not None:
         rotate_around_axis(roots, args.rotate_axis, args.rotate_degrees)
@@ -351,12 +503,14 @@ def main():
         if len(section.points) > 0
     ])
 
+    section_colors = {label: "black" for label in SECTION_COLORS} if args.all_black else SECTION_COLORS
+
     if args.plot_2d is not None:
         horizontal_axis, vertical_axis = args.plot_2d[0], args.plot_2d[1]
-        ax = plot_morphology_2d(roots, SECTION_COLORS, args.linewidth, horizontal_axis, vertical_axis)
+        ax = plot_morphology_2d(roots, section_colors, args.linewidth, horizontal_axis, vertical_axis)
         relevant_points = all_points[:, [AXIS_INDEX[horizontal_axis], AXIS_INDEX[vertical_axis]]]
     else:
-        ax = plot_morphology(roots, section_colors=SECTION_COLORS, linewidth=args.linewidth, show=False)
+        ax = plot_morphology(roots, section_colors=section_colors, linewidth=args.linewidth, show=False)
         relevant_points = all_points
 
     if args.center_on_data:
@@ -374,6 +528,9 @@ def main():
 
     set_axis_size(ax, axis_size, center)
 
+    apply_axis_limits(ax, args.plot_2d, horizontal_axis if args.plot_2d is not None else None,
+                       vertical_axis if args.plot_2d is not None else None, args.xlim, args.ylim, args.zlim)
+
     if args.show_bias_plane:
         if args.plot_2d is not None:
             add_bias_line_2d(ax, args.bias_plane_axis, args.bias_plane_position, horizontal_axis, vertical_axis)
@@ -385,8 +542,15 @@ def main():
     if args.hide_axes:
         ax.set_axis_off()
 
+    # window title (the OS/GUI title bar), not the plot's own title --
+    # only visible when plt.show() opens a real window, but harmless
+    # to set otherwise; guarded since some backends (e.g. saving with
+    # no display) have no window manager to set a title on at all.
+    if ax.figure.canvas.manager is not None:
+        ax.figure.canvas.manager.set_window_title(Path(args.swc_file).name)
+
     if args.output:
-        plt.savefig(args.output, dpi=150)
+        plt.savefig(args.output, dpi=300)
         print(f"saved to {args.output}")
     else:
         plt.show()
