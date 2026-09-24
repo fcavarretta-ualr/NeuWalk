@@ -74,20 +74,20 @@ def generate(seed, cell_type, **kwargs):
       (0.3, apical_spatial_bias),
       (0.0007, section_bias_apic),
       (0.07, plane_bias),
-      (0.025, spatial_bias),
+      (0.02, spatial_bias),
       ]
 
     basal_elongation_bias = [
       (0.1, somatic_bias),
       (0.001, section_bias_other),
-      (0.025, spatial_bias),
+      (0.02, spatial_bias),
       ]
 
     
     oblique_elongation_bias = [
       (0.1, root_bias),
       (0.0007, section_bias_other),
-      (0.025, spatial_bias),
+      (0.04, spatial_bias),
       ]
     
     # bifurcation biases
@@ -129,7 +129,7 @@ def generate(seed, cell_type, **kwargs):
             # point is reached, during the very first (order 0) pass
             'apical_oblique': oblique_elongation_bias,
         },
-        elongation_random_weight=3,
+        elongation_random_weight={'apical_dendrite':4, 'basal_dendrite':3.5, 'apical_oblique':4.5},
         elongation_bias_weight=7.5,
         # obliques have no axis_direction, so they keep the default
         # (no direction correction); only the primary apical and basal

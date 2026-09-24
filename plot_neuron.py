@@ -462,7 +462,7 @@ def main():
     parser.add_argument("--rotate-degrees", type=float, default=None, help="Angle in degrees to rotate by, right-hand rule (requires --rotate-axis).")
     parser.add_argument("--center-on-data", action="store_true", help="Center the axis range on this neuron's own bounding-box center instead of the origin -- breaks direct comparability with other plots, but maximizes use of the range for this one.")
     parser.add_argument("--tick-spacing", type=float, default=100.0, help="Distance between axis ticks, the same on all three axes (default: 100.0).")
-    parser.add_argument("--linewidth", type=float, default=3)
+    parser.add_argument("--linewidth", type=float, default=2)
     parser.add_argument("--show-bias-plane", action="store_true", help="Overlay a semi-transparent orange plane marking the aPC/neocortex pyramidal presets' spatial_bias plane.")
     parser.add_argument("--bias-plane-axis", choices=("x", "y", "z"), default="y", help="Axis the bias plane is orthogonal to (default: y, matching _generation.py's plane_boundary bias).")
     parser.add_argument("--bias-plane-position", type=float, default=0.0, help="Position of the bias plane along --bias-plane-axis (default: 0.0, the slab's own center plane).")
@@ -550,7 +550,7 @@ def main():
         ax.figure.canvas.manager.set_window_title(Path(args.swc_file).name)
 
     if args.output:
-        plt.savefig(args.output, dpi=300)
+        plt.savefig(args.output, dpi=1000)
         print(f"saved to {args.output}")
     else:
         plt.show()

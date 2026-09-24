@@ -31,20 +31,23 @@ def main():
     all_params = {}
     profiles = {}
     for label, delete_labels in discarded_sections.items():
-      print(f"Elaboration of {label}")
-      
-      print(f"\tExtracting statistics...", end="")
-      params = extract_statistics(
-        load_morphologies(args.directory, delete_labels=delete_labels),
-        bin_size=args.bin_size)
-      print("done")
+        try:
+          print(f"Elaboration of {label}")
+          
+          print(f"\tExtracting statistics...", end="")
+          params = extract_statistics(
+            load_morphologies(args.directory, delete_labels=delete_labels),
+            bin_size=args.bin_size)
+          print("done")
 
-      # these params are not used for generation
-      params.pop("total_length", None)
-      params.pop("bifurcation_internal_density", None)
+          # these params are not used for generation
+          params.pop("total_length", None)
+          params.pop("bifurcation_internal_density", None)
 
-      all_params[label] = params.copy()
-      all_params[label]['bin_size'] = args.bin_size
+          all_params[label] = params.copy()
+          all_params[label]['bin_size'] = args.bin_size
+        except:
+            continue
       
     with open(args.output, "w") as file:
       json.dump(all_params, file, indent=4, default=lambda value: value.tolist())

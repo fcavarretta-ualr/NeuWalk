@@ -141,7 +141,10 @@ def process_soma(roots):
 
     # calculate baricenter of the soma
     # so we have somata made by a single point
-    soma.points = [np.mean(soma.points, axis=0)]
+    try:
+        soma.points = [np.mean(soma.points, axis=0)]
+    except TypeError:
+        soma.points = [np.zeros(3)]
 
     # check soma integrity
     for section in _all_sections(roots, non_soma_only=True):              

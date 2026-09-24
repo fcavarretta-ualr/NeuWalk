@@ -60,7 +60,7 @@ def generate(seed, cell_type, **kwargs):
     
     # somatic repulsion
 
-    w_apic_section_bias = { "pyramidal": 0.001, "semilunar":0.002 }[cell_type]
+    w_apic_section_bias = { "pyramidal": 0.0005, "semilunar":0.002 }[cell_type]
     w_apic_spatial_bias = { "pyramidal": 0.02, "semilunar":0.04 }[cell_type]
 
     # compose the biases into the elongation bias, one per label
@@ -96,7 +96,7 @@ def generate(seed, cell_type, **kwargs):
 
 
     elongation_random_weight = {
-        "pyramidal":{"apical_dendrite":0.75, "basal_dendrite":2.5},
+        "pyramidal":{"apical_dendrite":0.5, "basal_dendrite":2.5},
         "semilunar":{"apical_dendrite":2.5, "basal_dendrite":2.5}
         }[cell_type]
 

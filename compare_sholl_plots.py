@@ -354,7 +354,7 @@ def main():
     fig.tight_layout()
 
     if args.output:
-        fig.savefig(args.output, dpi=300, bbox_inches="tight", pad_inches=args.pad_inches)
+        fig.savefig(args.output, dpi=1000, bbox_inches="tight", pad_inches=args.pad_inches)
         print(f"saved to {args.output}")
     else:
         plt.show()
