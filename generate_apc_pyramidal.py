@@ -191,7 +191,7 @@ def generate(
     # left as None) independently, then composed into one weighted
     # list per label -- matching _generation.py's own structure and
     # weights exactly, just with each term individually skippable
-    apical_spatial_bias = None if disable_directional_bias or disable_correction else \
+    apical_spatial_bias = None if disable_directional_bias else \
         biases.get_elongation("plane_boundary", np.array([0., 0., 0.]), (0., 0.), None, None)
 
     thickness = 25.0
@@ -202,7 +202,7 @@ def generate(
         spatial_bias = biases.get_elongation("plane_boundary", np.array([0., thickness, 0.]), (np.pi / 2, np.pi / 2 * 3), thickness / 2, -1.0, resistance=True) + \
                        biases.get_elongation("plane_boundary", np.array([0., -thickness, 0.]), (np.pi / 2, np.pi / 2), thickness / 2, -1.0, resistance=True)
 
-    basal_spatial_bias = None if disable_directional_bias or disable_correction else \
+    basal_spatial_bias = None if disable_directional_bias else \
         biases.get_elongation("plane_boundary", np.array([0., 0., 0.]), (np.pi, 0.), None, None)
 
     section_bias = None if disable_self_avoidance else \
