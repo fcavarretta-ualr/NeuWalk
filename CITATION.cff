@@ -18,13 +18,13 @@ authors:
   - given-names: Francesco
     family-names: Cavarretta
     email: fcavarretta@ualr.edu
-    affiliation: "Department of Computer Science and Emerging Analytics Center, University of Arkansas at Little Rock, Little Rock, AR, United States"
+    affiliation: "School of Computer and Information Sciences and Emerging Analytics Center, University of Arkansas at Little Rock, Little Rock, AR, United States"
     # orcid: "https://orcid.org/0000-0000-0000-0000"
 version: 1.0.0
 date-released: "2026-09-24"
 license: MIT
-repository-code: "https://github.com/ORG/NeuWalk"
-url: "https://github.com/ORG/NeuWalk"
+repository-code: "https://github.com/fcavarretta-ualr/NeuWalk"
+url: "https://github.com/fcavarretta-ualr/NeuWalk"
 doi: "10.5281/zenodo.0000000"
 keywords:
   - neuron morphology
@@ -41,7 +41,7 @@ preferred-citation:
     - given-names: Francesco
       family-names: Cavarretta
       email: fcavarretta@ualr.edu
-      affiliation: "Department of Computer Science and Emerging Analytics Center, University of Arkansas at Little Rock, Little Rock, AR, United States"
+      affiliation: "School of Computer and Information Sciences and Emerging Analytics Center, University of Arkansas at Little Rock, Little Rock, AR, United States"
   journal: Neurocomputing
   year: 2026
   # volume:
