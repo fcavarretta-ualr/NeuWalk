@@ -19,13 +19,13 @@ authors:
     family-names: Cavarretta
     email: fcavarretta@ualr.edu
     affiliation: "School of Computer and Information Sciences and Emerging Analytics Center, University of Arkansas at Little Rock, Little Rock, AR, United States"
-    # orcid: "https://orcid.org/0000-0000-0000-0000"
+    orcid: "https://orcid.org/0000-0002-3859-2692"
 version: 1.0.0
 date-released: "2026-09-24"
-license: MIT
+license: CC-BY-4.0
 repository-code: "https://github.com/fcavarretta-ualr/NeuWalk"
 url: "https://github.com/fcavarretta-ualr/NeuWalk"
-doi: "10.5281/zenodo.0000000"
+doi: "10.5281/zenodo.22929014"
 keywords:
   - neuron morphology
   - morphology synthesis
@@ -42,6 +42,7 @@ preferred-citation:
       family-names: Cavarretta
       email: fcavarretta@ualr.edu
       affiliation: "School of Computer and Information Sciences and Emerging Analytics Center, University of Arkansas at Little Rock, Little Rock, AR, United States"
+      orcid: "https://orcid.org/0000-0002-3859-2692"
   journal: Neurocomputing
   year: 2026
   # volume:
