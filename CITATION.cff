@@ -1,0 +1,50 @@
+cff-version: 1.2.0
+message: "If you use NeuWalk, please cite both the software and the paper below."
+title: NeuWalk
+abstract: >-
+  NeuWalk is a Python package for data-driven synthesis of three-dimensional
+  neuron morphologies via branching-and-annihilating, biased-and-correlated
+  random walks. Bifurcation and annihilation rates are estimated in closed form
+  from a Sholl profile and, optionally, a bifurcation count, and drive
+  mono-dimensional random walks that synthesize the topology; the topology then
+  guides biased-and-correlated three-dimensional random walks, with
+  user-specified biases implementing somatofugality, self-avoidance, spatial
+  competition, and branching-angle control. Because these statistics are
+  commonly reported in the literature and biases can be inferred from published
+  images or qualitative descriptions, NeuWalk requires no immediate access to
+  experimental reconstructions.
+type: software
+authors:
+  - given-names: Francesco
+    family-names: Cavarretta
+    email: fcavarretta@ualr.edu
+    affiliation: "Department of Computer Science and Emerging Analytics Center, University of Arkansas at Little Rock, Little Rock, AR, United States"
+    # orcid: "https://orcid.org/0000-0000-0000-0000"
+version: 1.0.0
+date-released: "2026-09-24"
+license: MIT
+repository-code: "https://github.com/ORG/NeuWalk"
+url: "https://github.com/ORG/NeuWalk"
+doi: "10.5281/zenodo.0000000"
+keywords:
+  - neuron morphology
+  - morphology synthesis
+  - random walks
+  - computational neuroscience
+  - Sholl analysis
+  - dendrites
+  - Python
+preferred-citation:
+  type: article
+  title: "NeuWalk: A Python Package for Data-Driven Synthesis of Three-Dimensional Neuron Morphologies Using Random Walks"
+  authors:
+    - given-names: Francesco
+      family-names: Cavarretta
+      email: fcavarretta@ualr.edu
+      affiliation: "Department of Computer Science and Emerging Analytics Center, University of Arkansas at Little Rock, Little Rock, AR, United States"
+  journal: Neurocomputing
+  year: 2026
+  # volume:
+  # start:
+  # end:
+  # doi:
